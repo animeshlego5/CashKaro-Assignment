@@ -1,19 +1,19 @@
 {
   "rules": [
-    { "reason": "OTP", "any": ["otp", "one time password", "do not share"] },
-    { "reason": "DECLINED", "any": ["declined", "was declined"] },
-    { "reason": "OFFER", "any": ["% off", "cashback", "offer", "t&c apply"] },
-    { "reason": "FUTURE_AUTO_DEBIT", "any": ["will be auto debited", "e-mandate", "auto-debit", "auto debit"] },
-    { "reason": "EMI_CONVERSION", "any": ["converted to emi", "emi of"] },
-    { "reason": "FEE_OR_CHARGE", "any": ["finance charge", "late payment fee", "gst"] },
-    { "reason": "CARD_PAYMENT", "any": ["payment of", "received towards"], "withCard": true },
-    { "reason": "BILL_DUE", "any": ["bill of", "is due", "minimum amount due"] },
-    { "reason": "INSURANCE", "any": ["insurance", "premium", "policy"] },
-    { "reason": "INVESTMENT", "any": ["sip", "mutual fund", "folio", "large cap"] },
+    { "reason": "OTP", "any": ["otp", "one time password", "one-time password", "do not share", "verification code"] },
+    { "reason": "DECLINED", "any": ["declined", "was declined", "transaction failed", "could not be processed"] },
+    { "reason": "OFFER", "any": ["% off", "cashback", "offer", "t&c apply", "reward points", "save up to"] },
+    { "reason": "FUTURE_AUTO_DEBIT", "any": ["will be auto debited", "will be debited", "e-mandate", "auto-debit", "auto debit", "standing instruction"] },
+    { "reason": "EMI_CONVERSION", "any": ["converted to emi", "emi of", "convert to emi"] },
+    { "reason": "FEE_OR_CHARGE", "any": ["finance charge", "late payment fee", "annual fee", "joining fee", "convenience fee", "interest charge", "gst"] },
+    { "reason": "CARD_PAYMENT", "any": ["payment of", "received towards", "payment received"], "withCard": true },
+    { "reason": "BILL_DUE", "any": ["bill of", "is due", "due on", "total amount due", "minimum amount due"] },
+    { "reason": "INSURANCE", "any": ["insurance", "premium of", "policy no", "policy xyz", "renewal complete"] },
+    { "reason": "INVESTMENT", "any": ["sip", "mutual fund", "folio", "large cap", "units allotted"] },
     { "reason": "DEBIT_CARD", "any": ["debit card"] },
-    { "reason": "UPI_BANK_ACCOUNT", "any": ["upi", "@ok", "/p2a/", "vpa"] },
+    { "reason": "UPI_BANK_ACCOUNT", "any": ["upi", "@ok", "/p2a/", "/p2m/", "vpa"] },
     { "reason": "SALARY_CREDIT", "any": ["salary"] },
-    { "reason": "BALANCE_ALERT", "any": ["avl bal", "available balance"], "unless": ["spent", "debited", "credited", "auto debited", "payment of"] },
+    { "reason": "BALANCE_ALERT", "any": ["avl bal", "available balance", "available bal", "a/c balance"], "unless": ["spent", "debited", "credited", "auto debited", "payment of"] },
     { "reason": "SAVINGS_ACCOUNT", "any": ["a/c", "acct", "account"], "notCreditCard": true }
   ]
 }

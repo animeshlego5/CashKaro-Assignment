@@ -9,7 +9,7 @@
 | --- | --- | --- |
 | 0 | Project Scaffold & Build Bring-up | ✅ build+test green · on-device launch deferred |
 | 1 | Architecture Contracts, Config Schema & Sample Oracle | ✅ contracts frozen · 12 tests green |
-| 2 | ⚡ Parallel Component Build | ☐ |
+| 2 | ⚡ Parallel Component Build | ✅ 6 components · 140 tests green |
 | 3 | Parser Integration, Confidence & Golden-Set Tuning | ☐ |
 | 4 | React Native UI | ☐ |
 | 5 | Kotlin Unit Test Suite Completion & Hardening | ☐ |
@@ -23,10 +23,10 @@
 - [x] **C1** Parsing logic is entirely in Kotlin; JS only calls the bridge and renders. *(architecture established Phase 1: pure `parser/` core + thin bridge; `SmsParser.ts` only calls.)*
 - [~] **C2** Conservative under uncertainty — EXCLUDE with specific reason + low confidence when unsure. *(orchestrator default-denies + downgrades amount-less includes; full verification in Phase 2/3.)*
 - [~] **C3** Exclusion rules run before INCLUDE is declared. *(pipeline order enforced in `SmsParser`; real engine in Phase 2.)*
-- [ ] **C4** Bank attribution reads the SMS body; co-brands resolve to issuer (Jupiter/Edge→Federal, BOBCARD→BoB).
-- [ ] **C5** Config-driven — adding a bank/rule is a JSON edit, not a code change.
-- [ ] **C6** Hidden-sample resilient — no hard-coded strings/IDs, no array length/order reliance, no whole-body matching.
-- [ ] **C7** Currency detected, never assumed (INR, Rs, USD, EUR, AED).
+- [x] **C4** Bank attribution reads the SMS body; co-brands resolve to issuer. *(DefaultBankResolver: co-brand-first, multi-bank proximity, null-when-unknown; 18 tests.)*
+- [x] **C5** Config-driven — adding a bank/rule is a JSON/data edit, not a code change. *(config-extensibility tests in ExclusionEngine + BankResolver.)*
+- [~] **C6** Hidden-sample resilient — no hard-coded strings/IDs, no array length/order reliance, no whole-body matching. *(components generalise + word-boundary matching + novel-wording tests; full reorder/append/empty pass is Phase 3.)*
+- [x] **C7** Currency detected, never assumed (INR, Rs, USD, EUR, AED). *(DefaultCurrencyExtractor; foreign beats co-mentioned INR; 22 tests.)*
 - [x] **C8** Malformed → EXCLUDE/MALFORMED_SMS/transaction null/conf≈0.1. *(DefaultMalformedGate + orchestrator fail-safe; verified by PipelineShapeTest.)*
 - [x] **C9** No runtime network, no LLM, no real SMS permissions, no inbox reads. *(manifest has only INTERNET for Metro/dev; parser core is offline pure Kotlin, no SMS perms.)*
 
@@ -127,52 +127,58 @@ Every substitution from `buildphase.md`, with the reason (the plan requires reco
 > 6 agents, disjoint files. Each ships component + config slice + unit tests.
 
 **2A — ExclusionEngine + rules** (`ExclusionEngine.kt`, `ExclusionRule.kt`, `exclusion-rules.json`)
-- [ ] Ordered rule engine → reason; first-match-wins.
-- [ ] Covers: OTP, DEBIT_CARD, SAVINGS_ACCOUNT, UPI_BANK_ACCOUNT, BALANCE_ALERT, BILL_DUE, OFFER, FUTURE_AUTO_DEBIT, DECLINED, EMI_CONVERSION, FEE_OR_CHARGE, CARD_PAYMENT, INVESTMENT, INSURANCE, SALARY_CREDIT.
-- [ ] Ordering verified (future auto-debit on a credit card ⇒ FUTURE_AUTO_DEBIT, not spend).
-- [ ] Unit tests pass.
+- [x] Ordered rule engine → reason; first-match-wins (`DefaultExclusionEngine` + compiled `ExclusionRule`).
+- [x] Covers all 15 reason categories (OTP … SALARY_CREDIT) — a named test each.
+- [x] Ordering verified (UPI before BALANCE_ALERT before SAVINGS catch-all; `withCard`/`notCreditCard` qualifiers).
+- [x] Unit tests pass (31).
 
 **2B — InclusionClassifier** (`InclusionClassifier.kt`, **owns `products.json`** via `CardSignal`)
-- [ ] Credit-card spend detection via signal tokens (Credit Card / limit-language) vs non-card (Debit Card / A/C / UPI).
-- [ ] Assigns `TxnType`: DEBIT (spend) vs REFUND (reversal) vs **CREDIT** (relevant non-refund credit-card credit, distinct from excluded `CARD_PAYMENT`).
-- [ ] Conservative on bare "Card" without limit-language.
-- [ ] **Default-deny:** ambiguous-but-not-malformed, no credit-card signal → `EXCLUDE`/`LOW_CONFIDENCE`.
-- [ ] Unit tests pass.
+- [x] Credit-card spend detection via `CardSignal` (Credit Card / limit-language) vs non-card.
+- [x] Assigns `TxnType`: DEBIT vs REFUND vs **CREDIT** (cashback/reward credited to card; refund wins over credit).
+- [x] Conservative on bare "Card" without limit-language.
+- [x] **Default-deny:** no credit-card signal → `EXCLUDE`/`LOW_CONFIDENCE`.
+- [x] Unit tests pass (12).
 
-**2C — BankResolver** (`BankResolver.kt`, owns `banks.json` + `card-products.json`; read-only on `products.json`)
-- [ ] Resolves issuer from body (C4).
-- [ ] Co-brand map (`card-products.json`): Jupiter/Edge→Federal Bank; BOBCARD One→Bank of Baroda/BOBCARD.
-- [ ] App/product branding does not override issuer.
-- [ ] **Multi-bank precedence:** issuer token adjacent to card/limit/spend wins over footer/helpline bank tokens.
-- [ ] Returns null when unknown (no guessing).
-- [ ] Unit tests pass.
+**2C — BankResolver** (`BankResolver.kt`, owns `banks.json` + `card-products.json`)
+- [x] Resolves issuer from body (C4).
+- [x] Co-brand map: Jupiter/Edge→Federal Bank; BOBCARD One→Bank of Baroda (resolved before direct banks).
+- [x] App/product branding does not override issuer.
+- [x] **Multi-bank precedence:** proximity tie-break — issuer near card/spend/limit wins; helpline/footer ignored.
+- [x] Returns null when unknown (no guessing).
+- [x] Unit tests pass (18).
 
 **2D — Amount + Currency** (`AmountExtractor.kt`, `CurrencyExtractor.kt`, `currencies.json`)
-- [ ] Indian number formats parsed (`1,45,300.00`, `Rs.450.00`, `Rs 50000`).
-- [ ] Currency detected: INR, Rs→INR, USD, EUR, AED (C7).
-- [ ] Picks transaction amount, not balance/limit/markup.
-- [ ] Unit tests pass.
+- [x] Indian number formats parsed (`1,45,300.00`, `Rs.450.00`, `Rs 50000`, `50000`).
+- [x] Currency detected: INR, Rs→INR, USD, EUR, AED (C7); foreign beats a co-mentioned INR equivalent.
+- [x] Picks transaction amount, not balance/limit/markup; bare non-money digits (OTP/ref) → null.
+- [x] Unit tests pass (22).
 
 **2E — Date extractor** (`DateExtractor.kt`, `dates.json`)
-- [ ] Formats → ISO `YYYY-MM-DD` (`02/04/26`, `03-04-2026`, `04-Apr-26`, `06-APR-26`).
-- [ ] Two-digit year → 20YY; null when absent.
-- [ ] Unit tests pass.
+- [x] Formats → ISO `YYYY-MM-DD` via `SimpleDateFormat` (minSdk-23-safe; no `java.time`/desugaring).
+- [x] Two-digit year → 20YY (2000 pivot); first date wins on multi-date; null when absent.
+- [x] Unit tests pass (18).
 
 **2F — Card + Merchant** (`CardExtractor.kt`, `MerchantExtractor.kt`, `merchants.json`)
-- [ ] Last-four from `xx5678`, `XX9876`, `ending 1234`, `ending in XX9907`.
-- [ ] Card-type token classified (Credit/Debit/bare Card/A/C) for the classifier.
-- [ ] Merchant extracted from `at/to/with X`, cleaned reasonably.
-- [ ] Unit tests pass.
+- [x] Last-four from `xx5678`, `XX9876`, `ending 1234`, `ending in XX9907`, `*4521`, `Card no.` (3-digit `XX123`→null).
+- [x] Card-type token classified (CREDIT_CARD/DEBIT_CARD/BARE_CARD/ACCOUNT/UNKNOWN).
+- [x] Merchant from earliest `at/to/with X`, cut at ` on `/`.`/`,`; strips city + suffixes; domain dots kept.
+- [x] Unit tests pass (27).
 
 **Coordination / exit criteria**
-- [ ] Every component compiles; its own tests pass (`./gradlew test`).
-- [ ] No component imports `android.*`.
-- [ ] Config-driven proven (add bank/rule/currency via JSON in a test).
-- [ ] Each agent mirrored **only its own** `assets/parser-config/*.json` file(s) into `src/test/resources/parser-config/` (no shared owner, no gap).
-- [ ] Edge-case notes captured below.
+- [x] Every component compiles; **all 140 unit tests pass** (`./gradlew :app:testDebugUnitTest`).
+- [x] No component imports `android.*` (grep of `parser/` clean).
+- [x] Config-driven proven — ExclusionEngine & BankResolver config-extensibility tests add a rule/bank/co-brand via data only.
+- [x] Each agent mirrored its config JSON to test resources; `ConfigLoadTest` asserts byte-identical (passes).
+- [x] Edge-case notes captured below.
 
 **Component findings / edge cases**
-- (record per-component notes here as agents report back)
+- **Orchestrator integration fixes (4)** — surfaced by the central `./gradlew test` (agents self-reviewed but, by design, did not run Gradle): (1) **BankResolver** matched co-brand `product` against `sms.lower` without lowercasing (config keeps product original-case) → fixed at the match site; (2) **ExclusionRule** substring `"upi"` matched inside **"jupiter"** (sample 8 mis-excluded as UPI — latent in the seed too) → word-like tokens now match at **word boundaries** (also hardens "sip"-in-"gossip" C6 risks); punctuation tokens stay substring; (3) **InclusionClassifier** bare `"spend"` guard tripped on the noun **"spends"** ("cashback for May spends") → word-boundary spend guard; (4) **AmountExtractor** returned the OTP digits `458219` → now requires money-shape (comma/decimal-formatted, currency-anchored, or near transaction wording), else null.
+- 2A: `avl limit` kept strictly distinct from `avl bal`; CARD_PAYMENT carries `withCard` so a "payment of" lacking a card signal falls through to SAVINGS; refined seed tokens (annual/joining fee, standing instruction, `premium of`/`policy no` rather than bare `premium`/`policy` to dodge "Premium Card").
+- 2B: refund/reversal wins over CREDIT; CREDIT only on cashback/reward credited-to-card with no spend verb; punted — recognising a credit card with no limit/"credit card" phrase in the body (signal-driven by design; that case is the scorer's/BankResolver's concern).
+- 2C: proximity anchors are generic context words, not sample-keyed; multiple distinct issuers with none near an anchor → null (refuses to guess).
+- 2D: lakh grouping via comma-tolerant regex; `%` markup + `emi of` instalment rejected; foreign currency anywhere beats a co-mentioned INR equivalent.
+- 2E: greedy `yyyy`/`yy` pitfall (a 4-digit pattern coercing `06-04-26`→year 0026) guarded by a year<1000 floor; long ref/phone numbers not misread as dates.
+- 2F: 3-digit masked group (`XX123`)→null (conservative); merchant boundary `.` fires only before whitespace/end so `NETFLIX.COM/US` is preserved.
 
 ---
 
