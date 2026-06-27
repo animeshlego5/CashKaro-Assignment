@@ -56,3 +56,6 @@ CLAUDE.md
 *.jsbundle
 /coverage
 *.hprof
+
+# ---- Built release APKs (local artifacts to share; do not commit binaries) ----
+releases/
