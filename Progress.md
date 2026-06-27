@@ -10,7 +10,7 @@
 | 0 | Project Scaffold & Build Bring-up | ✅ build+test green · on-device launch deferred |
 | 1 | Architecture Contracts, Config Schema & Sample Oracle | ✅ contracts frozen · 12 tests green |
 | 2 | ⚡ Parallel Component Build | ✅ 6 components · 140 tests green |
-| 3 | Parser Integration, Confidence & Golden-Set Tuning | ☐ |
+| 3 | Parser Integration, Confidence & Golden-Set Tuning | ✅ oracle matched · 151 tests green |
 | 4 | React Native UI | ☐ |
 | 5 | Kotlin Unit Test Suite Completion & Hardening | ☐ |
 | 6 | Feature / Integration / E2E Testing | ☐ |
@@ -21,11 +21,11 @@
 ## Cross-cutting principles (verify continuously, not once)
 
 - [x] **C1** Parsing logic is entirely in Kotlin; JS only calls the bridge and renders. *(architecture established Phase 1: pure `parser/` core + thin bridge; `SmsParser.ts` only calls.)*
-- [~] **C2** Conservative under uncertainty — EXCLUDE with specific reason + low confidence when unsure. *(orchestrator default-denies + downgrades amount-less includes; full verification in Phase 2/3.)*
-- [~] **C3** Exclusion rules run before INCLUDE is declared. *(pipeline order enforced in `SmsParser`; real engine in Phase 2.)*
+- [x] **C2** Conservative under uncertainty — EXCLUDE with specific reason + low confidence when unsure. *(default-deny + amount-less-include downgrade + low malformed/ambiguous confidence; verified end-to-end by the golden + resilience tests.)*
+- [x] **C3** Exclusion rules run before INCLUDE is declared. *(pipeline runs ExclusionEngine before InclusionClassifier; golden set confirms all 18 excludes resolve by their reason.)*
 - [x] **C4** Bank attribution reads the SMS body; co-brands resolve to issuer. *(DefaultBankResolver: co-brand-first, multi-bank proximity, null-when-unknown; 18 tests.)*
 - [x] **C5** Config-driven — adding a bank/rule is a JSON/data edit, not a code change. *(config-extensibility tests in ExclusionEngine + BankResolver.)*
-- [~] **C6** Hidden-sample resilient — no hard-coded strings/IDs, no array length/order reliance, no whole-body matching. *(components generalise + word-boundary matching + novel-wording tests; full reorder/append/empty pass is Phase 3.)*
+- [x] **C6** Hidden-sample resilient — no hard-coded strings/IDs, no array length/order reliance, no whole-body matching. *(config-driven + word-boundary matching; ResilienceTest covers reorder/empty/append-novel (new bank, multi-bank, fresh OTP, foreign currency, synthetic CREDIT) + garbage.)*
 - [x] **C7** Currency detected, never assumed (INR, Rs, USD, EUR, AED). *(DefaultCurrencyExtractor; foreign beats co-mentioned INR; 22 tests.)*
 - [x] **C8** Malformed → EXCLUDE/MALFORMED_SMS/transaction null/conf≈0.1. *(DefaultMalformedGate + orchestrator fail-safe; verified by PipelineShapeTest.)*
 - [x] **C9** No runtime network, no LLM, no real SMS permissions, no inbox reads. *(manifest has only INTERNET for Metro/dev; parser core is offline pure Kotlin, no SMS perms.)*
@@ -185,22 +185,30 @@ Every substitution from `buildphase.md`, with the reason (the plan requires reco
 ## Phase 3 — Parser Integration, Confidence & Golden-Set Tuning
 
 **Features / tasks**
-- [ ] Real components wired into `SmsParser` in C3 order.
-- [ ] `ConfidenceScorer` implemented with documented bands (clear spend 0.9–0.97, bare-card 0.8–0.88, co-brand 0.78–0.88, clear exclusion 0.9–0.97, ambiguous exclusion 0.6–0.78, malformed ≈0.1).
-- [ ] Missing-field penalties applied.
-- [ ] Default-deny path emits `EXCLUDE`/`LOW_CONFIDENCE` for ambiguous-not-malformed input.
-- [ ] `ParserGoldenTest` runs all oracle inputs; asserts decision + reason + key fields; confidence as bands; **`transaction == null` for every EXCLUDE**; #1 reason asserted as accepted-set, #4 documented custom code.
-- [ ] Tuned against oracle; deliberate divergences recorded.
-- [ ] Resilience tests: reorder, append-novel-wording (incl. **CREDIT** case + **multi-bank** case + fresh OTP/foreign-currency), empty array.
+- [x] Real components wired into `SmsParser.create` in C3 order; `StubStages.kt` deleted.
+- [x] `DefaultConfidenceScorer` implemented with documented bands (include base 0.77 + explicit-CC 0.14 / limit-lang 0.08 + field bonuses; co-brand −0.08; cap 0.97; strong exclusion 0.93; savings 0.78; ambiguous LOW_CONFIDENCE 0.60; malformed 0.10).
+- [x] Missing-field penalties applied (bonuses for bank/date/merchant/cardLastFour; co-brand penalty).
+- [x] Default-deny path emits `EXCLUDE`/`LOW_CONFIDENCE` for ambiguous-not-malformed input.
+- [x] `ParserGoldenTest` (3 tests): asserts decision + reason + key fields; confidence as bands; **`transaction == null` for every EXCLUDE**; #1 reason via accepted-set, #4 SALARY_CREDIT custom code.
+- [x] Tuned against oracle — **no divergences** (parser matches the oracle on all 25). One integration tuning: sample 21 refund to a bare "HDFC Card" is recognised as a credit-card REFUND (it survived exclusion, so it is not a debit/account refund).
+- [x] Resilience tests (8): reorder/order-independence, empty array, synthetic **CREDIT** (reward), **multi-bank** issuer-vs-footer, fresh OTP, foreign-currency (EUR), unknown-bank-still-conservative, garbage/malformed never crash.
 
 **Exit criteria**
-- [ ] Pipeline matches oracle decisions/reasons (or documented justified divergences).
-- [ ] Summary = **Included: 7 / Excluded: 18**; INR debit ≈ ₹5,455; INR credit/refund ≈ ₹450.
-- [ ] Confidence bands behave; `transaction == null` holds for all excludes.
-- [ ] Reorder/append/empty tests pass.
+- [x] Pipeline matches oracle decisions/reasons (no divergences).
+- [x] Summary = **Included: 7 / Excluded: 18**; INR debit = ₹5,455; INR credit/refund = ₹450 (asserted in `aggregate_summary_matches_spec`).
+- [x] Confidence bands behave; `transaction == null` holds for all excludes.
+- [x] Reorder/append/empty tests pass.
+
+**Phase 3 verification:** `./gradlew :app:testDebugUnitTest` → **151 tests, 0 failures**; `./gradlew assembleDebug` → BUILD SUCCESSFUL.
 
 **Struggled-with samples (feeds README §4)**
-- (record here: e.g. #1 "block CC" trap, #5 bare "Card", #17 EMI-vs-spend, …)
+- **#1** "Sent … From HDFC Bank A/C … To BIGBASKET … block CC" — the "block CC" footer is a trap (not a credit-card signal); resolved as an account debit (SAVINGS_ACCOUNT). Oracle accepts SAVINGS_ACCOUNT|UPI_BANK_ACCOUNT|BANK_ACCOUNT.
+- **#5** bare "Card no." with no "Credit Card" — relies on "Available Limit" as the credit-card signal (limit-language), scored a touch lower than an explicit-CC spend.
+- **#8** "j**upi**ter" — the substring `"upi"` falsely tripped UPI_BANK_ACCOUNT until word-boundary matching was added (Phase 2 integration fix).
+- **#17** EMI-conversion vs spend — an existing spend converted to EMI is excluded (EMI_CONVERSION), not double-counted.
+- **#21** refund to a bare "HDFC Card" (no "credit card"/limit phrase) — needed the survived-exclusion-implies-credit-card refund rule to be INCLUDE/REFUND.
+- **#24** UPI + "Avl Bal" footer — UPI fires before BALANCE_ALERT so the account/UPI nature wins over the trailing balance line.
+- "cashback" is treated as a promotional OFFER (exclusion-first), so the CREDIT type is exercised by genuine "reward credited to card" wording rather than "cashback" (a deliberate, conservative choice).
 
 ---
 
