@@ -55,6 +55,26 @@ The user has a physical Android phone but will connect it for a later testing ph
 
 ---
 
+## Deviations from the plan (running log — feeds README tech-stack note & §5)
+
+Every substitution from `buildphase.md`, with the reason (the plan requires recording these).
+
+| # | Area | Plan said | What was done | Why |
+| --- | --- | --- | --- | --- |
+| D1 | JDK | JDK 17 | **JDK 21** | Only 21 present; RN 0.74/Gradle 8.x build is green on it. Portable-17 fallback documented, not needed. |
+| D2 | Package manager | Yarn (version open) | **Yarn 3.6.4** via corepack | RN 0.74 template default; `yarn install`/`yarn android` unchanged. |
+| D3 | Android build tools | buildTools 34.0.0, ndk 26.1.x | **buildTools 35.0.0, ndk 28.2.13676358** | Match the SDK installed at `C:\adb` (no downloads). |
+| D4 | iOS | (RN scaffolds iOS) | **iOS scaffold omitted** | Android-only per PRD; reduces clutter. |
+| D5 | JSON parsing | unspecified | **Gson** (`implementation`) | `org.json` throws in JVM unit tests; Gson is JVM-clean and needs no Kotlin plugin. |
+| D6 | `ExcludeReason` | enum/sealed | **enum** + safe `fromCode` fallback | New reason *codes* need an enum entry, but adding/refining rules that reuse a code is pure JSON (C5 holds for the demonstrated case); enum gives type-safety + completeness. |
+| D7 | Stage interfaces | "documented + frozen" | **centralised in `parser/Contracts.kt`** (orchestrator-owned) | Stronger freeze guarantee; Phase 2 agents add `Default*` impls in their owned files implementing these. |
+| D8 | `AssetConfigSource` | listed under `parser/config/` | **placed in the bridge package** (`com.cashkaro.smsparser`) | It needs `android.*` (AssetManager); keeping it out of `parser/` keeps the core android-free + JVM-testable. |
+| D9 | Normalizer/MalformedGate | "stub in Phase 1" | **implemented for real in Phase 1** | They are unowned shared infra (not in the Phase 2 table); real impls de-risk Phase 3. ConfidenceScorer stays stubbed until Phase 3. |
+| D10 | Seed config | the 25 samples' banks/tokens | **+ SBI, Kotak banks; extra currency tokens** | Hidden-sample resilience (C6) — generalise beyond the 25. |
+| D11 | Verification | `yarn android` launch + on-screen check | **deferred to phone connect** | No emulator; device-free `assembleDebug` + `gradlew test` substitute. See Environment block. |
+
+---
+
 ## Phase 0 — Project Scaffold & Build Bring-up
 
 **Features / tasks**
