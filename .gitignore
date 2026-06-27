@@ -1,0 +1,53 @@
+# ---- Node / React Native ----
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+.metro-health-check*
+metro.config.js.bak
+
+# Watchman / Metro caches
+.haste_cache/
+.expo/
+
+# ---- Android ----
+android/app/build/
+android/build/
+android/.gradle/
+android/captures/
+android/local.properties
+*.keystore
+!debug.keystore
+android/app/release/
+.cxx/
+
+# Gradle
+.gradle/
+build/
+
+# ---- Kotlin / Java ----
+*.class
+*.iml
+
+# ---- IDE / Editor ----
+.idea/
+*.swp
+.vscode/
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Local agent tooling (kept out of the repo) ----
+.claude/
+CLAUDE.md
+
+# ---- Misc ----
+*.log
+*.tmp
+~$*.docx
