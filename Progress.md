@@ -12,7 +12,7 @@
 | 2 | ⚡ Parallel Component Build | ✅ 6 components · 140 tests green |
 | 3 | Parser Integration, Confidence & Golden-Set Tuning | ✅ oracle matched · 151 tests green |
 | 4 | React Native UI | ✅ built · tsc + 4 Jest green · on-device visual deferred |
-| 5 | Kotlin Unit Test Suite Completion & Hardening | ☐ |
+| 5 | Kotlin Unit Test Suite Completion & Hardening | ✅ 164 tests green (8 required + hardening) |
 | 6 | Feature / Integration / E2E Testing | ☐ |
 | 7 | Documentation, README & Submission Prep | ☐ |
 
@@ -237,26 +237,30 @@ Every substitution from `buildphase.md`, with the reason (the plan requires reco
 
 ## Phase 5 — Kotlin Unit Test Suite Completion & Hardening
 
-**Required tests (docs/Testing.md)**
-- [ ] 1. Clear credit-card spend (sample 2) → INCLUDE/DEBIT + fields.
-- [ ] 2. Debit-card exclusion (sample 6) → EXCLUDE/DEBIT_CARD.
-- [ ] 3. OTP exclusion (sample 10) → EXCLUDE/OTP.
-- [ ] 4. UPI/savings exclusion (sample 20 or 3) → EXCLUDE/UPI_BANK_ACCOUNT.
-- [ ] 5. Fintech/co-branded issuer (sample 8 → Federal Bank; sample 9 → BOBCARD/BoB).
-- [ ] 6. Refund (sample 21) → INCLUDE/REFUND.
-- [ ] 7. Foreign currency (sample 22) → INCLUDE/DEBIT, USD, excluded from INR totals.
-- [ ] 8. Malformed (sample 25) → EXCLUDE/MALFORMED_SMS, transaction null, conf ≈0.1.
+> Required matrix made explicit as named, full-pipeline tests in `RequiredCategoriesTest` (9) + `HardeningTest` (4). Written directly (one cohesive pass) rather than the per-category file fan-out — simple assertions over the full parser.
 
-**Extra hardening tests**
-- [ ] Config-extensibility: new bank added via JSON only → resolves (proves C5).
-- [ ] Conservative-bias: ambiguous bare "Card", no limit-language → `EXCLUDE`/`LOW_CONFIDENCE`, not a confident INCLUDE (C2).
-- [ ] Null-contract: a non-malformed EXCLUDE has `transaction == null`.
-- [ ] `CREDIT`-type path exercised by a synthetic non-refund credit-card credit (cross-ref Phase 3 resilience).
+**Required tests (docs/Testing.md)** — all in `RequiredCategoriesTest`
+- [x] 1. Clear credit-card spend (sample 2) → INCLUDE/DEBIT + HDFC/5678/SWIGGY/1250 INR/date/conf≥0.85.
+- [x] 2. Debit-card exclusion (sample 6) → EXCLUDE/DEBIT_CARD, txn null.
+- [x] 3. OTP exclusion (sample 10) → EXCLUDE/OTP, txn null.
+- [x] 4. UPI/savings exclusion (sample 20) → EXCLUDE/UPI_BANK_ACCOUNT, txn null.
+- [x] 5. Fintech/co-branded issuer (5a sample 8 → Federal Bank; 5b sample 9 → Bank of Baroda).
+- [x] 6. Refund (sample 21) → INCLUDE/REFUND + HDFC/450 INR/date.
+- [x] 7. Foreign currency (sample 22) → INCLUDE/DEBIT, USD, contributes 0 to INR totals.
+- [x] 8. Malformed (sample 25) → EXCLUDE/MALFORMED_SMS, txn null, conf ≤0.2.
+
+**Extra hardening tests** — in `HardeningTest`
+- [x] Config-extensibility: new bank added via `baseConfig.copy(banks = … + BankPattern)` resolves; base config does not (proves C5).
+- [x] Conservative-bias: ambiguous bare "Card", no limit-language → `EXCLUDE`/`LOW_CONFIDENCE`, conf <0.75 (C2).
+- [x] Null-contract: a non-malformed EXCLUDE (OTP) has `transaction == null`.
+- [x] `CREDIT`-type path exercised by a "reward credited to card" message → INCLUDE/CREDIT.
 
 **Exit criteria**
-- [ ] All 8 required categories present as named, passing tests.
-- [ ] Extensibility + conservative-bias tests pass.
-- [ ] `cd android; ./gradlew test` green; command captured for README.
+- [x] All 8 required categories present as named, passing tests.
+- [x] Extensibility + conservative-bias tests pass.
+- [x] `cd android; ./gradlew test` green; command captured for README.
+
+**Phase 5 verification:** `cd android; ./gradlew :app:testDebugUnitTest` → **164 tests, 0 failures** across 16 test classes (BankResolver 18, CardSignal 5, ExclusionEngine 31, InclusionClassifier 12, ConfigLoad 2, Amount 12, Card 18, Currency 10, Date 18, Merchant 9, FieldNameSnapshot 2, Hardening 4, Golden 3, PipelineShape 3, RequiredCategories 9, Resilience 8). README run command: `cd android && ./gradlew test`.
 
 ---
 
