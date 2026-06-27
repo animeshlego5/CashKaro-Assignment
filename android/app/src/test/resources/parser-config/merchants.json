@@ -1,0 +1,5 @@
+{
+  "atPrepositions": ["at", "to", "with"],
+  "stripSuffixes": ["pvt", "ltd", "limited", "in"],
+  "stripCity": true
+}

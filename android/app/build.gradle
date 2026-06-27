@@ -108,6 +108,12 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // Config JSON parsing for the pure-Kotlin parser core (JVM-friendly; usable in unit tests).
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    // Kotlin parser unit tests (JUnit4, run on the JVM via Gradle — no emulator).
+    testImplementation("junit:junit:4.13.2")
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {

@@ -1,0 +1,12 @@
+{
+  "banks": [
+    { "canonical": "HDFC Bank", "patterns": ["hdfc"] },
+    { "canonical": "ICICI Bank", "patterns": ["icici"] },
+    { "canonical": "Axis Bank", "patterns": ["axis"] },
+    { "canonical": "Yes Bank", "patterns": ["yes bank"] },
+    { "canonical": "Federal Bank", "patterns": ["federal bank", "federal"] },
+    { "canonical": "Bank of Baroda", "patterns": ["bank of baroda", "baroda"] },
+    { "canonical": "State Bank of India", "patterns": ["state bank of india", "sbi"] },
+    { "canonical": "Kotak Mahindra Bank", "patterns": ["kotak"] }
+  ]
+}

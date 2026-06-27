@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "purpose": "TEST ORACLE ONLY — expected outputs for the 25 provided samples. This file is NEVER referenced by parser/production code (anti-cheat; see docs/Submission.md & docs/Testing.md). It drives ParserGoldenTest (Phase 3) and the aggregate E2E (Phase 6) only.",
+    "derivation": "Independently re-derived from docs/Functions.md by a sub-agent and reconciled with buildphase.md Appendix B — full agreement on all 25 decisions and reason codes.",
+    "conventions": [
+      "confidence is asserted as a [confidenceMin, confidenceMax] band, never exact equality.",
+      "merchant is informational only — perfect merchant extraction is explicitly NOT graded; the golden test must not assert it strictly.",
+      "sample 1 reason is asserted against excludeReasonAnyOf (SAVINGS_ACCOUNT | UPI_BANK_ACCOUNT | BANK_ACCOUNT).",
+      "sample 4 SALARY_CREDIT is an intentional custom reason code.",
+      "sample 9 bank may resolve to 'Bank of Baroda' or 'BOBCARD' (bankAnyOf).",
+      "sample 22 is USD and is excluded from INR aggregate totals (C7).",
+      "every EXCLUDE result must have transaction == null."
+    ]
+  },
+  "aggregate": {
+    "included": 7,
+    "excluded": 18,
+    "inrDebitTotal": 5455.0,
+    "inrDebitContributors": [2, 5, 7, 8, 9],
+    "inrCreditRefundTotal": 450.0,
+    "inrCreditRefundContributors": [21],
+    "usdExcludedFromInr": [22]
+  },
+  "samples": [
+    { "id": 1, "decision": "EXCLUDE", "excludeReasonAnyOf": ["SAVINGS_ACCOUNT", "UPI_BANK_ACCOUNT", "BANK_ACCOUNT"], "confidenceMin": 0.60, "confidenceMax": 1.0, "note": "Debit From HDFC Bank A/C *4521 to BIGBASKET; account debit. 'block CC' footer is a trap, not a card spend." },
+    { "id": 2, "decision": "INCLUDE", "type": "DEBIT", "bank": "HDFC Bank", "amount": 1250.0, "currency": "INR", "cardLastFour": "5678", "merchant": "SWIGGY", "date": "2026-04-03", "confidenceMin": 0.88, "confidenceMax": 1.0, "note": "Explicit credit-card spend." },
+    { "id": 3, "decision": "EXCLUDE", "excludeReason": "UPI_BANK_ACCOUNT", "confidenceMin": 0.85, "confidenceMax": 1.0, "note": "Account debit credited to a UPI VPA." },
+    { "id": 4, "decision": "EXCLUDE", "excludeReason": "SALARY_CREDIT", "confidenceMin": 0.80, "confidenceMax": 1.0, "note": "Salary credited to A/c (custom reason code)." },
+    { "id": 5, "decision": "INCLUDE", "type": "DEBIT", "bank": "Axis Bank", "amount": 320.0, "currency": "INR", "cardLastFour": "9876", "merchant": "AMAZON", "date": "2026-04-06", "confidenceMin": 0.75, "confidenceMax": 1.0, "note": "'Card' + 'Available Limit' => credit card." },
+    { "id": 6, "decision": "EXCLUDE", "excludeReason": "DEBIT_CARD", "confidenceMin": 0.88, "confidenceMax": 1.0, "note": "Explicit Debit Card." },
+    { "id": 7, "decision": "INCLUDE", "type": "DEBIT", "bank": "Yes Bank", "amount": 1200.0, "currency": "INR", "cardLastFour": "8888", "merchant": "AMAZON", "date": "2026-04-07", "confidenceMin": 0.85, "confidenceMax": 1.0, "note": "Explicit credit-card spend." },
+    { "id": 8, "decision": "INCLUDE", "type": "DEBIT", "bank": "Federal Bank", "amount": 1836.0, "currency": "INR", "cardLastFour": "4422", "merchant": "HOSPITALITY PVT DELHI", "date": "2026-04-07", "confidenceMin": 0.72, "confidenceMax": 1.0, "note": "Co-brand: Edge/Jupiter => Federal Bank issuer; app branding ignored." },
+    { "id": 9, "decision": "INCLUDE", "type": "DEBIT", "bankAnyOf": ["Bank of Baroda", "BOBCARD", "Bank of Baroda / BOBCARD"], "amount": 849.0, "currency": "INR", "cardLastFour": "9907", "merchant": "Blackwater Coffee", "date": "2026-04-08", "confidenceMin": 0.72, "confidenceMax": 1.0, "note": "Co-brand: BOBCARD One => Bank of Baroda / BOBCARD." },
+    { "id": 10, "decision": "EXCLUDE", "excludeReason": "OTP", "confidenceMin": 0.88, "confidenceMax": 1.0, "note": "OTP." },
+    { "id": 11, "decision": "EXCLUDE", "excludeReason": "BALANCE_ALERT", "confidenceMin": 0.88, "confidenceMax": 1.0, "note": "Available balance alert." },
+    { "id": 12, "decision": "EXCLUDE", "excludeReason": "BILL_DUE", "confidenceMin": 0.88, "confidenceMax": 1.0, "note": "Bill due alert." },
+    { "id": 13, "decision": "EXCLUDE", "excludeReason": "OFFER", "confidenceMin": 0.88, "confidenceMax": 1.0, "note": "Promotional offer." },
+    { "id": 14, "decision": "EXCLUDE", "excludeReason": "FUTURE_AUTO_DEBIT", "confidenceMin": 0.80, "confidenceMax": 1.0, "note": "'will be auto debited' — future, even though credit card." },
+    { "id": 15, "decision": "EXCLUDE", "excludeReason": "DECLINED", "confidenceMin": 0.88, "confidenceMax": 1.0, "note": "Declined transaction." },
+    { "id": 16, "decision": "EXCLUDE", "excludeReason": "INVESTMENT", "confidenceMin": 0.85, "confidenceMax": 1.0, "note": "SIP / mutual fund from A/c." },
+    { "id": 17, "decision": "EXCLUDE", "excludeReason": "EMI_CONVERSION", "confidenceMin": 0.75, "confidenceMax": 1.0, "note": "Existing spend converted to EMI — not a new spend." },
+    { "id": 18, "decision": "EXCLUDE", "excludeReason": "FEE_OR_CHARGE", "confidenceMin": 0.85, "confidenceMax": 1.0, "note": "Finance charge + GST." },
+    { "id": 19, "decision": "EXCLUDE", "excludeReason": "CARD_PAYMENT", "confidenceMin": 0.85, "confidenceMax": 1.0, "note": "Card bill payment received (not a spend)." },
+    { "id": 20, "decision": "EXCLUDE", "excludeReason": "UPI_BANK_ACCOUNT", "confidenceMin": 0.88, "confidenceMax": 1.0, "note": "UPI from A/c." },
+    { "id": 21, "decision": "INCLUDE", "type": "REFUND", "bank": "HDFC Bank", "amount": 450.0, "currency": "INR", "cardLastFour": "5678", "merchant": "BIGBASKET", "date": "2026-04-12", "confidenceMin": 0.82, "confidenceMax": 1.0, "note": "Refund credited to credit card." },
+    { "id": 22, "decision": "INCLUDE", "type": "DEBIT", "bank": "Axis Bank", "amount": 49.99, "currency": "USD", "cardLastFour": "9876", "merchant": "NETFLIX.COM/US", "date": "2026-04-13", "confidenceMin": 0.75, "confidenceMax": 1.0, "note": "Foreign-currency card spend; excluded from INR totals." },
+    { "id": 23, "decision": "EXCLUDE", "excludeReason": "INSURANCE", "confidenceMin": 0.82, "confidenceMax": 1.0, "note": "Insurance premium from A/c." },
+    { "id": 24, "decision": "EXCLUDE", "excludeReason": "UPI_BANK_ACCOUNT", "confidenceMin": 0.88, "confidenceMax": 1.0, "note": "UPI from A/c (to NETFLIX-MONTHLY, but still account/UPI)." },
+    { "id": 25, "decision": "EXCLUDE", "excludeReason": "MALFORMED_SMS", "confidenceMin": 0.0, "confidenceMax": 0.20, "note": "Truncated 'Spent Rs. 2,4'." }
+  ]
+}

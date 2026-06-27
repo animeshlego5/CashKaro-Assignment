@@ -8,7 +8,7 @@
 | Phase | Title | State |
 | --- | --- | --- |
 | 0 | Project Scaffold & Build Bring-up | ✅ build+test green · on-device launch deferred |
-| 1 | Architecture Contracts, Config Schema & Sample Oracle | ☐ |
+| 1 | Architecture Contracts, Config Schema & Sample Oracle | ✅ contracts frozen · 12 tests green |
 | 2 | ⚡ Parallel Component Build | ☐ |
 | 3 | Parser Integration, Confidence & Golden-Set Tuning | ☐ |
 | 4 | React Native UI | ☐ |
@@ -20,15 +20,15 @@
 
 ## Cross-cutting principles (verify continuously, not once)
 
-- [ ] **C1** Parsing logic is entirely in Kotlin; JS only calls the bridge and renders.
-- [ ] **C2** Conservative under uncertainty — EXCLUDE with specific reason + low confidence when unsure.
-- [ ] **C3** Exclusion rules run before INCLUDE is declared.
+- [x] **C1** Parsing logic is entirely in Kotlin; JS only calls the bridge and renders. *(architecture established Phase 1: pure `parser/` core + thin bridge; `SmsParser.ts` only calls.)*
+- [~] **C2** Conservative under uncertainty — EXCLUDE with specific reason + low confidence when unsure. *(orchestrator default-denies + downgrades amount-less includes; full verification in Phase 2/3.)*
+- [~] **C3** Exclusion rules run before INCLUDE is declared. *(pipeline order enforced in `SmsParser`; real engine in Phase 2.)*
 - [ ] **C4** Bank attribution reads the SMS body; co-brands resolve to issuer (Jupiter/Edge→Federal, BOBCARD→BoB).
 - [ ] **C5** Config-driven — adding a bank/rule is a JSON edit, not a code change.
 - [ ] **C6** Hidden-sample resilient — no hard-coded strings/IDs, no array length/order reliance, no whole-body matching.
 - [ ] **C7** Currency detected, never assumed (INR, Rs, USD, EUR, AED).
-- [ ] **C8** Malformed → EXCLUDE/MALFORMED_SMS/transaction null/conf≈0.1.
-- [ ] **C9** No runtime network, no LLM, no real SMS permissions, no inbox reads.
+- [x] **C8** Malformed → EXCLUDE/MALFORMED_SMS/transaction null/conf≈0.1. *(DefaultMalformedGate + orchestrator fail-safe; verified by PipelineShapeTest.)*
+- [x] **C9** No runtime network, no LLM, no real SMS permissions, no inbox reads. *(manifest has only INTERNET for Metro/dev; parser core is offline pure Kotlin, no SMS perms.)*
 
 ---
 
@@ -79,24 +79,26 @@ The user has a physical Android phone but will connect it for a later testing ph
 ## Phase 1 — Architecture Contracts, Config Schema & Sample Oracle
 
 **Features / tasks**
-- [ ] Models: `Decision`, `TxnType` (DEBIT/CREDIT/REFUND — all three), `ExcludeReason` (Functions.md reasons **+ custom `SAVINGS_ACCOUNT`, `UPI_BANK_ACCOUNT`, `SALARY_CREDIT`**; `LOW_CONFIDENCE` reserved as default-deny fallback), `Transaction`, `ParsedResult`.
-- [ ] Config contracts: `ParserConfig` (incl. `banks`, `cardProducts`, `products`, …), `ConfigSource` interface, `JsonConfigParser`.
-- [ ] Shared `CardSignal` helper frozen (reads `products.json`; consumed by ExclusionEngine qualifiers + InclusionClassifier); disambiguates `avl limit` vs `avl bal`.
-- [ ] Exclusion-rule qualifier semantics frozen (`any`/`unless`/`withCard`/`notCreditCard`).
-- [ ] `AssetConfigSource` (reads assets) + `TestConfigSource` (reads test resources) → identical `ParserConfig`.
-- [ ] Seed JSON committed: `banks.json`, `card-products.json`, `products.json` (**seeded with core credit-card signals**), `exclusion-rules.json`, `currencies.json`, `merchants.json`, `dates.json`.
-- [ ] `SmsParser.kt` orchestrator wires 6 stages as injected interfaces with compiling stub impls.
-- [ ] **All 6 stage interface signatures frozen** (documented in code comments).
-- [ ] Bridge constructs `SmsParser` via `AssetConfigSource`; end-to-end returns schema-valid output through the real pipeline shape.
-- [ ] Sample oracle transcribed to `src/test/resources/oracle.json` (marked test-only).
+- [x] Models: `Decision`, `TxnType` (DEBIT/CREDIT/REFUND), `ExcludeReason` (all Functions.md reasons + custom `SALARY_CREDIT`; `LOW_CONFIDENCE` default-deny fallback; `fromCode` safe lookup), `Transaction`, `ParsedResult` (`parser/model/`).
+- [x] Config contracts: `ParserConfig` (+ DTOs `BankPattern`/`CardProduct`/`ExclusionRuleDef`/`CurrencyDef`/`MerchantConfig`), `ConfigSource` interface, Gson-based `JsonConfigParser` (pure, JVM-safe).
+- [x] Shared `CardSignal` helper frozen (`classify/CardSignal.kt`; reads products.json signals); disambiguates `avl limit` vs `avl bal` — proven by CardSignalTest.
+- [x] Exclusion-rule qualifier semantics frozen in `ExclusionRuleDef` doc (`any`/`unless`/`withCard`/`notCreditCard`, first-match-wins).
+- [x] `AssetConfigSource` (assets, bridge layer) + `TestConfigSource` (test resources) → identical `ParserConfig`; mirror asserted byte-identical.
+- [x] Seed JSON committed (all 7): banks, card-products, products (**core CC signals seeded**), exclusion-rules (validated order), currencies, merchants, dates — mirrored to `src/test/resources/parser-config/`.
+- [x] `SmsParser.kt` orchestrator wires 6 stages (C3 order) as injected interfaces; real Normalizer+MalformedGate, stub rest (`StubStages.kt`); never throws (C8).
+- [x] **All 6 stage interface signatures frozen** in `parser/Contracts.kt` (documented "FROZEN", orchestrator-owned).
+- [x] Bridge constructs `SmsParser` via `AssetConfigSource`, converts via pure `ResultMapper` → WritableMap; compiles + assembles into the APK.
+- [x] Sample oracle at `src/test/resources/oracle.json` (test-only) — **independently re-derived by a sub-agent and reconciled with Appendix B (full agreement)**.
 
 **Exit criteria**
-- [ ] Models/config/interfaces compile; bridge returns schema-valid output.
-- [ ] `ConfigSource` swap (Asset vs Test) verified by a load test.
-- [ ] **Verbatim field-name snapshot** confirms JSON keys equal the schema exactly (`rawSms, decision, excludeReason, transaction{amount,currency,bank,cardLastFour,merchant,type,date}, confidence`).
-- [ ] `CardSignal` + qualifier semantics frozen; `products.json` seeded.
-- [ ] Oracle consistent with Functions.md field rules.
-- [ ] Stage interfaces declared frozen.
+- [x] Models/config/interfaces compile; bridge returns schema-valid output through the real pipeline shape (`./gradlew assembleDebug` + `testDebugUnitTest` green).
+- [x] `ConfigSource` swap (Asset vs Test) verified by ConfigLoadTest (load + byte-identical mirror).
+- [x] **Verbatim field-name snapshot** (FieldNameSnapshotTest) confirms keys equal the schema exactly, in order.
+- [x] `CardSignal` + qualifier semantics frozen; `products.json` seeded.
+- [x] Oracle consistent with Functions.md field rules (independent derivation matched it).
+- [x] Stage interfaces declared frozen (`Contracts.kt`).
+
+**Phase 1 verification:** `./gradlew :app:testDebugUnitTest` → **12 tests, 0 failures** (CardSignal 5 · ConfigLoad 2 · FieldNameSnapshot 2 · PipelineShape 3); `./gradlew assembleDebug` → BUILD SUCCESSFUL. Oracle independent-derivation note: agreed with Appendix B on all 25 decisions/reason codes; only flagged nuances were #1 SAVINGS↔UPI (handled via accepted-set), #9 BoB/BOBCARD naming, merchant-cleaning variance.
 
 ---
 

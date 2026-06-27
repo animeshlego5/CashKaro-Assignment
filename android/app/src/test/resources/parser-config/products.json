@@ -1,0 +1,4 @@
+{
+  "creditCardSignals": ["credit card", "avl limit", "available limit", "avl lmt", "credit limit", "foreign currency markup"],
+  "nonCardSignals": ["debit card", "a/c", "acct", "account", "savings", "upi"]
+}

@@ -1,0 +1,8 @@
+{
+  "currencies": [
+    { "code": "INR", "tokens": ["inr", "rs.", "rs", "₹"] },
+    { "code": "USD", "tokens": ["usd", "us$", "$"] },
+    { "code": "EUR", "tokens": ["eur", "€"] },
+    { "code": "AED", "tokens": ["aed", "dhs"] }
+  ]
+}

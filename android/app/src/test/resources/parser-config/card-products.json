@@ -1,0 +1,8 @@
+{
+  "cardProducts": [
+    { "product": "Edge", "issuer": "Federal Bank" },
+    { "product": "Jupiter", "issuer": "Federal Bank" },
+    { "product": "BOBCARD One", "issuer": "Bank of Baroda" },
+    { "product": "BOBCARD", "issuer": "Bank of Baroda" }
+  ]
+}
