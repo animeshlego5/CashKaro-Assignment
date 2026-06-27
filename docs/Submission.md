@@ -38,16 +38,16 @@ Be transparent. We care more about judgment and ownership than pretending to wor
 
 Before submitting, make sure your repo includes:
 
-- ☐ React Native Android app
-- ☐ Kotlin native parser module
-- ☐ JS bridge call to parseSms
-- ☐ screen rendering all 25 parsed results
-- ☐ summary header
-- ☐ detail modal
-- ☐ config-driven bank/exclusion rules
-- ☐ Kotlin parser unit tests
-- ☐ README with all required sections
-- ☐ Production Android design note covers OEMs, permissions, latency, duplicates, and incremental parsing
-- ☐ screen recording link
-- ☐ no real SMS permission request
-- ☐ no external API dependency for parsing
+- ☑ React Native Android app
+- ☑ Kotlin native parser module
+- ☑ JS bridge call to parseSms
+- ☑ screen rendering all 25 parsed results (verified on device: 7 included / 18 excluded)
+- ☑ summary header
+- ☑ detail modal
+- ☑ config-driven bank/exclusion rules
+- ☑ Kotlin parser unit tests (164 JUnit4 tests, `cd android && ./gradlew test`)
+- ☑ README with all required sections
+- ☑ Production Android design note covers OEMs, permissions, latency, duplicates, and incremental parsing
+- ☐ screen recording link — **user action:** record the ≤2-min walkthrough and paste the link in README (top) + here
+- ☑ no real SMS permission request (manifest has only INTERNET; no SMS/Telephony)
+- ☑ no external API dependency for parsing (parser is pure offline Kotlin; no network/LLM)
