@@ -7,13 +7,13 @@
 
 | Phase | Title | State |
 | --- | --- | --- |
-| 0 | Project Scaffold & Build Bring-up | ✅ build+test green · on-device launch deferred |
+| 0 | Project Scaffold & Build Bring-up | ✅ build+test green · on-device launch verified |
 | 1 | Architecture Contracts, Config Schema & Sample Oracle | ✅ contracts frozen · 12 tests green |
 | 2 | ⚡ Parallel Component Build | ✅ 6 components · 140 tests green |
 | 3 | Parser Integration, Confidence & Golden-Set Tuning | ✅ oracle matched · 151 tests green |
-| 4 | React Native UI | ✅ built · tsc + 4 Jest green · on-device visual deferred |
+| 4 | React Native UI | ✅ built · tsc + 4 Jest green · on-device render verified |
 | 5 | Kotlin Unit Test Suite Completion & Hardening | ✅ 164 tests green (8 required + hardening) |
-| 6 | Feature / Integration / E2E Testing | ☐ |
+| 6 | Feature / Integration / E2E Testing | ✅ E2E + on-device manual run · audit clean |
 | 7 | Documentation, README & Submission Prep | ☐ |
 
 ---
@@ -44,14 +44,14 @@ Verified at session start. Recorded here because it deviates from the plan's ass
 | Android SDK | full SDK + `ANDROID_HOME` | full SDK present at **`C:\adb`** (non-standard name), env vars unset | ✅ usable. platforms: android-34/35/36; build-tools: 35.0.0, 36.0.0 (no 34.0.0 → set `buildToolsVersion="35.0.0"`); cmdline-tools `latest`; ndk 28.2; platform-tools/adb. Set `sdk.dir=C\:\\adb` in `android/local.properties` (and/or `ANDROID_HOME`). |
 | Emulator / AVD | reachable emulator | **none** (no emulator pkg, no system-images, `adb devices` empty) | ⛔ deferred — see below. |
 
-### ⛔ Deferred verification — requires the user's physical Android phone (connect later)
+### ✅ Device verification — RESOLVED (phone connected 2026-06-27)
 
-The user has a physical Android phone but will connect it for a later testing phase. Everything that needs a **running device** is deferred until then; everything JVM-side proceeds now.
+Physical device **CPH2467 (OnePlus, Android 15), serial `39ce622b`** connected via USB debugging. All previously-deferred on-device checks completed via `./gradlew installDebug` + Metro + `adb` screenshots:
 
-- **Phase 0 exit:** `yarn android` *launch* + "25 results received" on screen → **deferred**. Substitute now: verify the app **compiles** via `./gradlew assembleDebug` (no device needed). `./gradlew test` wiring is verifiable now.
-- **Phase 4 (UI):** "requires Phase 3 green / real device" exit criteria → **deferred** to device connect; build UI against stub then real parser output now.
-- **Phase 6:** manual app run / 5-step recording script → **deferred** to device connect.
-- **When the phone is connected:** enable USB debugging, `adb devices` should list it, then run `yarn android` and complete the deferred checks above before ticking those phases truly done.
+- **Phase 0 exit:** app builds, installs and **launches**; the live screen renders all 25 results (7 included + 18 excluded) — JS↔Kotlin bridge round-trip verified on device. ✅
+- **Phase 4 (UI):** rendered values match the **real** parser output — summary 7/18, INR debit ₹5,455.00, INR credit/refund ₹450.00 (USD excluded); included/excluded rows distinct; tap → included modal (all txn fields) and excluded modal (reason, no txn). ✅
+- **Phase 6:** full 5-step manual-run / recording script confirmed error-free on device. ✅
+- **Recording note:** the debug build loads JS from Metro (`yarn start`); for the screen recording, keep Metro running or build a self-contained APK.
 
 ---
 
@@ -90,8 +90,8 @@ Every substitution from `buildphase.md`, with the reason (the plan requires reco
 
 **Exit criteria**
 - [x] `yarn install` succeeds (Yarn 3.6.4 via corepack; `node_modules/` + `yarn.lock` present).
-- [~] `yarn android` builds and launches. → **Build verified** via `./gradlew assembleDebug` = BUILD SUCCESSFUL (5m1s on JDK 21), `app-debug.apk` produced (123 MB). **Launch deferred** to phone connect (see Environment block).
-- [~] Screen proves the bridge returns one result per input. → **Deferred** to phone connect; `App.tsx` renders "N results received" — verified on device later.
+- [x] `yarn android` builds and launches. → `./gradlew assembleDebug`/`installDebug` BUILD SUCCESSFUL; **launched on device CPH2467 (Android 15)**, full UI renders.
+- [x] Screen proves the bridge returns one result per input. → on-device screenshot shows all 25 results (7 included + 18 excluded) from the native parser.
 - [x] `cd android; ./gradlew test` wiring confirmed = BUILD SUCCESSFUL; `:app:test` ran `NO-SOURCE` (zero tests, as expected for Phase 0).
 
 ---
@@ -229,7 +229,7 @@ Every substitution from `buildphase.md`, with the reason (the plan requires reco
 - [x] Detail modal built with all required fields; row `onPress` wires it (tap interaction itself is an on-device check).
 
 **Exit criteria — requires on-device run (DEFERRED to phone connect)**
-- [~] Rendered values match real parser output; INR totals exclude foreign currency; summary shows true 7/18 split. → **Logic verified** (C7 INR-exclusion proven in Jest; Phase 3 produces the correct 7/18 + ₹5,455/₹450). **On-screen confirmation on the real parser deferred** until the phone is connected (see Environment block).
+- [x] Rendered values match real parser output; INR totals exclude foreign currency; summary shows true 7/18 split. → **Verified on device** (CPH2467): summary 7/18, INR debit ₹5,455.00, INR credit/refund ₹450.00; included modal (all fields) + excluded modal (reason, no txn).
 
 **Phase 4 verification:** `yarn tsc --noEmit` → clean; `yarn jest` → **4 tests, 0 failures** (SummaryHeader C7, ResultRow included, ResultRow excluded, ParserScreen on-mount).
 
@@ -267,17 +267,19 @@ Every substitution from `buildphase.md`, with the reason (the plan requires reco
 ## Phase 6 — Feature / Integration / E2E Testing
 
 **Features / tasks**
-- [ ] Golden E2E (Kotlin): full samples → assert aggregate summary (7/18, INR totals).
-- [ ] Hidden-sample simulation: 3–5 new-wording synthetic samples → conservative, sane output (manually inspected, not string-asserted).
-- [ ] Manual app run (run/verify skill): launch → summary → scroll included+excluded → included modal → excluded modal.
-- [ ] Anti-cheat self-audit: no hard-coded sample strings, no ID switches, no length/order reliance, no network/LLM/SMS-permission calls.
-- [ ] (Optional) Jest smoke test for JS wrapper shape.
+- [x] Golden E2E (Kotlin): `ParserGoldenTest.aggregate_summary_matches_spec` asserts 7/18 + INR ₹5,455 / ₹450.
+- [x] Hidden-sample simulation: `ResilienceTest` (synthetic CREDIT, multi-bank, fresh OTP, EUR foreign, unknown-bank, garbage) → conservative, sane output, no false-positive INCLUDEs.
+- [x] **Manual app run on the physical device (CPH2467, Android 15)** — verified via `adb` screenshots: launch → summary (7/18, ₹5,455/₹450, Top Exclusions) → included + excluded rows → included modal (SWIGGY: all txn fields) → excluded modal (SAVINGS_ACCOUNT: reason, no txn).
+- [x] Anti-cheat self-audit: clean — only doc-comment sample mentions (`MerchantExtractor`); no SMS perms/Telephony/inbox, no network/LLM (parser or JS), no sample-ID/length/order reliance.
+- [x] (Optional) Jest smoke test for JS/UI shape — done in Phase 4 (4 tests).
 
 **Exit criteria**
-- [ ] Aggregate summary E2E passes.
-- [ ] Hidden-wording samples produce no false-positive INCLUDEs.
-- [ ] Manual run completes the full 5-step recording script error-free.
-- [ ] Anti-cheat audit clean.
+- [x] Aggregate summary E2E passes (Kotlin test + confirmed on-device).
+- [x] Hidden-wording samples produce no false-positive INCLUDEs.
+- [x] Manual run completes the full 5-step recording script error-free (screenshots captured).
+- [x] Anti-cheat audit clean.
+
+**Phase 6 verification:** ran `./gradlew installDebug` + Metro on device 39ce622b (CPH2467, Android 15); on-device screenshots confirm the summary, both row styles, and both modal variants. Live output matches the oracle (7 included / 18 excluded; INR debit ₹5,455.00; INR credit/refund ₹450.00).
 
 ---
 
