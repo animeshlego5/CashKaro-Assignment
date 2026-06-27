@@ -51,3 +51,8 @@ CLAUDE.md
 *.log
 *.tmp
 ~$*.docx
+
+# ---- React Native extras ----
+*.jsbundle
+/coverage
+*.hprof

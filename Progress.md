@@ -7,7 +7,7 @@
 
 | Phase | Title | State |
 | --- | --- | --- |
-| 0 | Project Scaffold & Build Bring-up | ☐ |
+| 0 | Project Scaffold & Build Bring-up | ✅ build+test green · on-device launch deferred |
 | 1 | Architecture Contracts, Config Schema & Sample Oracle | ☐ |
 | 2 | ⚡ Parallel Component Build | ☐ |
 | 3 | Parser Integration, Confidence & Golden-Set Tuning | ☐ |
@@ -32,24 +32,47 @@
 
 ---
 
+## Environment (resolved 2026-06-27)
+
+Verified at session start. Recorded here because it deviates from the plan's assumptions and **defers some device-dependent verification**.
+
+| Item | Plan expects | Actual | Resolution |
+| --- | --- | --- | --- |
+| Node | 18+ | **v22.17.1** | ✅ ok |
+| Yarn | installed | was missing | ✅ enabled via **corepack** → yarn 1.22.22 (no admin) |
+| JDK | **17** | **21 only** (`C:\Program Files\Java\jdk-21`, `JAVA_HOME`→jdk-21); no JDK 17 present | ⚠️ **Proceeding on JDK 21** (RN 0.74 / Gradle 8.x can run on it). Fallback if Gradle breaks: portable Temurin JDK 17 zip + `org.gradle.java.home`. **Record as a README deviation.** |
+| Android SDK | full SDK + `ANDROID_HOME` | full SDK present at **`C:\adb`** (non-standard name), env vars unset | ✅ usable. platforms: android-34/35/36; build-tools: 35.0.0, 36.0.0 (no 34.0.0 → set `buildToolsVersion="35.0.0"`); cmdline-tools `latest`; ndk 28.2; platform-tools/adb. Set `sdk.dir=C\:\\adb` in `android/local.properties` (and/or `ANDROID_HOME`). |
+| Emulator / AVD | reachable emulator | **none** (no emulator pkg, no system-images, `adb devices` empty) | ⛔ deferred — see below. |
+
+### ⛔ Deferred verification — requires the user's physical Android phone (connect later)
+
+The user has a physical Android phone but will connect it for a later testing phase. Everything that needs a **running device** is deferred until then; everything JVM-side proceeds now.
+
+- **Phase 0 exit:** `yarn android` *launch* + "25 results received" on screen → **deferred**. Substitute now: verify the app **compiles** via `./gradlew assembleDebug` (no device needed). `./gradlew test` wiring is verifiable now.
+- **Phase 4 (UI):** "requires Phase 3 green / real device" exit criteria → **deferred** to device connect; build UI against stub then real parser output now.
+- **Phase 6:** manual app run / 5-step recording script → **deferred** to device connect.
+- **When the phone is connected:** enable USB debugging, `adb devices` should list it, then run `yarn android` and complete the deferred checks above before ticking those phases truly done.
+
+---
+
 ## Phase 0 — Project Scaffold & Build Bring-up
 
 **Features / tasks**
-- [ ] Environment verified: Node 18+, JDK 17, Android SDK + emulator (`adb devices`).
-- [ ] RN 0.74.x TypeScript app scaffolded at repo root (docs/CLAUDE.md/buildphase.md/Progress.md preserved).
-- [ ] `newArchEnabled=false`; app id `com.cashkaro.smsparser` set consistently.
-- [ ] `src/data/samples.json` created with all 25 samples as `[{id, text}]`; JS accepts any-length array.
-- [ ] Stub `SmsParserModule.parseSms(ReadableArray, Promise)` returns schema-valid result per input.
-- [ ] `SmsParserPackage` registered in `MainApplication`.
-- [ ] `src/native/SmsParser.ts` typed wrapper + `ParsedResult` TS types matching the schema.
-- [ ] `App.tsx` calls `parseSms` on mount and renders result count.
-- [ ] `.gitignore` covers RN/Android build artefacts.
+- [~] Environment verified — see **Environment (resolved 2026-06-27)** above. Node 22 ✅, Yarn via corepack ✅, JDK 21 (deviation from 17), SDK at `C:\adb` ✅. **No emulator → on-device launch deferred to phone connect.**
+- [x] RN 0.74.5 TypeScript app scaffolded at repo root (docs/CLAUDE.md/buildphase.md/Progress.md preserved; **iOS scaffold omitted** — Android-only per PRD).
+- [x] `newArchEnabled=false` (RN 0.74 template default); app id `com.cashkaro.smsparser` set consistently (namespace + applicationId + Kotlin package + directory; renamed from generated `com.cashkarosmsparser`).
+- [x] `src/data/samples.json` created with all 25 samples as `[{id, text}]`; `App.tsx` maps `s.text` over the array (any length — C6).
+- [x] Stub `SmsParserModule.parseSms(ReadableArray, Promise)` returns schema-valid result per input (rawSms echoed · `EXCLUDE` · `LOW_CONFIDENCE` · transaction null · confidence 0.0).
+- [x] `SmsParserPackage` registered in `MainApplication.getPackages()`.
+- [x] `src/native/SmsParser.ts` typed wrapper + `ParsedResult`/`Transaction`/`Decision`/`TxnType` TS types matching the schema (`resolveJsonModule` enabled for the samples import).
+- [x] `App.tsx` calls `parseSms` on mount and renders result count + included/excluded split.
+- [x] `.gitignore` covers RN/Android build artefacts (kept repo's richer ignore, appended `*.jsbundle`, `/coverage`, `*.hprof`).
 
 **Exit criteria**
-- [ ] `yarn install` succeeds.
-- [ ] `yarn android` builds and launches.
-- [ ] Screen proves the bridge returns one result per input.
-- [ ] `cd android; ./gradlew test` wiring confirmed.
+- [x] `yarn install` succeeds (Yarn 3.6.4 via corepack; `node_modules/` + `yarn.lock` present).
+- [~] `yarn android` builds and launches. → **Build verified** via `./gradlew assembleDebug` = BUILD SUCCESSFUL (5m1s on JDK 21), `app-debug.apk` produced (123 MB). **Launch deferred** to phone connect (see Environment block).
+- [~] Screen proves the bridge returns one result per input. → **Deferred** to phone connect; `App.tsx` renders "N results received" — verified on device later.
+- [x] `cd android; ./gradlew test` wiring confirmed = BUILD SUCCESSFUL; `:app:test` ran `NO-SOURCE` (zero tests, as expected for Phase 0).
 
 ---
 
