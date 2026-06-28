@@ -2,6 +2,9 @@ package com.cashkaro.smsparser
 
 import com.cashkaro.smsparser.parser.ResultMapper
 import com.cashkaro.smsparser.parser.SmsParser
+import com.cashkaro.smsparser.parser.session.ContextualEngine
+import com.cashkaro.smsparser.parser.session.SessionResultMapper
+import com.cashkaro.smsparser.parser.session.model.SmsRecord
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -28,9 +31,11 @@ class SmsParserModule(reactContext: ReactApplicationContext) :
 
     override fun getName(): String = NAME
 
-    private val parser: SmsParser by lazy {
-        SmsParser.create(AssetConfigSource(reactApplicationContext.assets).load())
-    }
+    // Config + parser are built lazily once and reused. The session engine (WS-3)
+    // reuses the SAME config + parser — the graded parseSms path is untouched.
+    private val config by lazy { AssetConfigSource(reactApplicationContext.assets).load() }
+    private val parser: SmsParser by lazy { SmsParser.create(config) }
+    private val sessionEngine: ContextualEngine by lazy { ContextualEngine.create(config, parser) }
 
     @ReactMethod
     fun parseSms(samples: ReadableArray, promise: Promise) {
@@ -50,7 +55,53 @@ class SmsParserModule(reactContext: ReactApplicationContext) :
         }
     }
 
-    /** Generic transcription of the pure schema Map into a React WritableMap. */
+    /**
+     * Session API (WS-3): run an ordered batch of records through the contextual
+     * engine and return the §7 SessionResult. ADDITIVE — does not touch parseSms
+     * or its frozen schema. Each element is a map { text, receivedAt?, sender? }.
+     */
+    @ReactMethod
+    fun parseSmsSession(records: ReadableArray, promise: Promise) {
+        try {
+            // Iterate by size() so any-length input works (C6 — never assumes 25).
+            val inputs = ArrayList<SmsRecord>(records.size())
+            for (i in 0 until records.size()) {
+                if (records.isNull(i)) {
+                    inputs.add(SmsRecord(text = "", receivedAt = null, sender = null))
+                    continue
+                }
+                val rec = records.getMap(i)
+                val text = if (rec.hasKey("text") && !rec.isNull("text")) {
+                    rec.getString("text") ?: ""
+                } else {
+                    ""
+                }
+                val receivedAt = if (rec.hasKey("receivedAt") && !rec.isNull("receivedAt")) {
+                    rec.getDouble("receivedAt").toLong()
+                } else {
+                    null
+                }
+                val sender = if (rec.hasKey("sender") && !rec.isNull("sender")) {
+                    rec.getString("sender")
+                } else {
+                    null
+                }
+                inputs.add(SmsRecord(text = text, receivedAt = receivedAt, sender = sender))
+            }
+            val session = sessionEngine.process(inputs)
+            promise.resolve(toWritableMap(SessionResultMapper.toMap(session)))
+        } catch (e: Throwable) {
+            // Never throw across the bridge (C8).
+            promise.reject("SMS_SESSION_ERROR", e)
+        }
+    }
+
+    /**
+     * Generic transcription of a pure schema Map into a React WritableMap. Handles
+     * the same value kinds the parseSms path uses, plus List (for the session
+     * rollups) and Long (epoch millis) — additive, the parseSms tree never carries
+     * those, so its output is unchanged.
+     */
     @Suppress("UNCHECKED_CAST")
     private fun toWritableMap(map: Map<String, Any?>): WritableMap {
         val wm = Arguments.createMap()
@@ -60,12 +111,34 @@ class SmsParserModule(reactContext: ReactApplicationContext) :
                 is String -> wm.putString(key, value)
                 is Boolean -> wm.putBoolean(key, value)
                 is Int -> wm.putInt(key, value)
+                is Long -> wm.putDouble(key, value.toDouble())
                 is Double -> wm.putDouble(key, value)
                 is Map<*, *> -> wm.putMap(key, toWritableMap(value as Map<String, Any?>))
+                is List<*> -> wm.putArray(key, toWritableArray(value))
                 else -> wm.putString(key, value.toString())
             }
         }
         return wm
+    }
+
+    /** Generic transcription of a pure List into a React WritableArray (session API). */
+    @Suppress("UNCHECKED_CAST")
+    private fun toWritableArray(list: List<*>): WritableArray {
+        val wa = Arguments.createArray()
+        for (value in list) {
+            when (value) {
+                null -> wa.pushNull()
+                is String -> wa.pushString(value)
+                is Boolean -> wa.pushBoolean(value)
+                is Int -> wa.pushInt(value)
+                is Long -> wa.pushDouble(value.toDouble())
+                is Double -> wa.pushDouble(value)
+                is Map<*, *> -> wa.pushMap(toWritableMap(value as Map<String, Any?>))
+                is List<*> -> wa.pushArray(toWritableArray(value))
+                else -> wa.pushString(value.toString())
+            }
+        }
+        return wa
     }
 
     companion object {

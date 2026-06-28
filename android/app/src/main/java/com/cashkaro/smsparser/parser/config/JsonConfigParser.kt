@@ -23,6 +23,11 @@ class JsonConfigParser(private val gson: Gson = Gson()) {
         val currencies = gson.fromJson(readFile(CURRENCIES), CurrenciesFile::class.java)
         val merchants = gson.fromJson(readFile(MERCHANTS), MerchantsFile::class.java)
         val dates = gson.fromJson(readFile(DATES), DatesFile::class.java)
+        // Additive (V3): the contextual engine's merchant-canonical/category seed.
+        // Tolerate absence so the frozen parseSms path never depends on it.
+        val merchantCategories = runCatching {
+            gson.fromJson(readFile(MERCHANT_CATEGORIES), MerchantCategoriesFile::class.java)
+        }.getOrNull()
 
         return ParserConfig(
             banks = banks?.banks.orEmpty().mapNotNull { it?.toDomain() },
@@ -33,6 +38,8 @@ class JsonConfigParser(private val gson: Gson = Gson()) {
             currencies = currencies?.currencies.orEmpty().mapNotNull { it?.toDomain() },
             merchant = (merchants ?: MerchantsFile()).toDomain(),
             dateFormats = dates?.formats.orEmpty().filterNotNull().map { it.trim() }.filter { it.isNotEmpty() },
+            merchantCategories = merchantCategories?.merchants.orEmpty().mapNotNull { it?.toDomain() },
+            threadWindowMinutes = merchantCategories?.threadWindowMinutes?.takeIf { it > 0 } ?: 15,
         )
     }
 
@@ -105,6 +112,30 @@ class JsonConfigParser(private val gson: Gson = Gson()) {
 
     private data class DatesFile(val formats: List<String?>? = null)
 
+    private data class MerchantCategoriesFile(
+        val merchants: List<RawMerchantCategory?>? = null,
+        val threadWindowMinutes: Int? = null,
+    )
+    private data class RawMerchantCategory(
+        val canonical: String? = null,
+        val category: String? = null,
+        val subscription: Boolean? = null,
+        val tokens: List<String?>? = null,
+    ) {
+        fun toDomain(): MerchantCategoryDef? {
+            val c = canonical?.trim().orEmpty()
+            val toks = tokens.toLowerList()
+            if (c.isEmpty() || toks.isEmpty()) return null
+            val cat = category?.trim()?.lowercase()?.ifEmpty { null }
+            return MerchantCategoryDef(
+                canonical = c,
+                category = cat,
+                subscription = subscription ?: false,
+                tokens = toks,
+            )
+        }
+    }
+
     companion object {
         const val BANKS = "banks.json"
         const val CARD_PRODUCTS = "card-products.json"
@@ -113,6 +144,13 @@ class JsonConfigParser(private val gson: Gson = Gson()) {
         const val CURRENCIES = "currencies.json"
         const val MERCHANTS = "merchants.json"
         const val DATES = "dates.json"
+
+        /**
+         * Additive (V3): contextual-engine merchant-canonical/category seed. Kept
+         * OUT of [FILE_NAMES] so the frozen parseSms config-load contract is
+         * unchanged; loaded best-effort and tolerated when absent.
+         */
+        const val MERCHANT_CATEGORIES = "merchant-categories.json"
 
         /** All config file names, in a stable order (used by mirror/load tests). */
         val FILE_NAMES = listOf(
