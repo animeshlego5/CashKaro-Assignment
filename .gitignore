@@ -59,3 +59,6 @@ CLAUDE.md
 
 # ---- Built release APKs (local artifacts to share; do not commit binaries) ----
 releases/
+
+# ---- Vendored reference seed (mined for the v2 merchant-category port; not our code) ----
+Moneyprism-main/

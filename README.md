@@ -10,6 +10,8 @@ All parsing, classification, bank detection and confidence scoring happen in **p
 
 **Screen recording:** _<add link to the ≤2-minute walkthrough here>_
 
+> **Assignment-core vs. v2-additive.** Sections **1–7** below document the **graded assignment**: the pure-Kotlin parser, the `parseSms` contract, and the React Native screen. **Section 8 ("Beyond the assignment")** documents a **v2 layer built additively on top** — an iOS-26 "Liquid Glass" UI redesign, a runtime SMS file-import flow, and a stateful **contextual engine**. None of it changes the graded path: **`parseSms` is byte-for-byte unchanged and remains the graded entry point**, the frozen `ParsedResult` schema is untouched, and the 25-sample golden oracle (`ParserGoldenTest`) still shows **zero diffs**. The contextual engine is a separate sidecar method (`parseSmsSession`) with its own schema — it never feeds the graded contract. If you only care about the assignment, read 1–7 and stop.
+
 ---
 
 ## 1. How to run
@@ -207,3 +209,52 @@ This project was built with **Claude Code** (an agentic CLI) acting as a build *
 **What was human-owned.** AI wrote the bulk of the Kotlin/TS under direction; the architecture, the frozen contracts, the confidence-model tuning, the four integration fixes, and the sample-21 / cashback judgment calls were directed and verified by the human-in-the-loop.
 
 **Verified manually/objectively.** Re-ran 164 Kotlin tests + `assembleDebug` + `tsc` + Jest; verified on a physical device via screenshots (summary 7/18, both modal types); ran an anti-cheat grep — **no hard-coded sample strings in logic, no SMS permissions, no network/LLM calls**. Every part of the code is explainable; nothing is a hard-coded sample hack.
+
+---
+
+# 8. Beyond the assignment (v2-additive)
+
+Everything in sections 1–7 is the graded assignment and is unchanged. This section documents a **v2 layer built strictly on top** of it. The guiding rule throughout was **additive-only**: no v2 change may alter `parseSms` output for the 25 samples. The 25-sample golden oracle (`ParserGoldenTest`) is the regression gate and shows **zero diffs** after all v2 work. The full v2 plan and per-workstream checklist live in [buildphase-v2.md](buildphase-v2.md) and the **Build Plan v2** section of [Progress.md](Progress.md).
+
+**What stays frozen (the assignment contract):**
+
+- `parseSms(samples: string[]): ParsedResult[]` — the pure, stateless, 1:1, order-independent graded entry point — is **byte-for-byte unchanged**.
+- The frozen `ParsedResult` schema and `ResultMapper`'s five core keys are **untouched** (`FieldNameSnapshotTest` still passes).
+- All new knowledge stays **config-driven JSON** under `android/app/src/main/assets/parser-config/`; all new logic stays in **Kotlin** (RN only calls the bridge and renders).
+
+## 8.1 Contextual engine (beyond the assignment)
+
+The contextual engine is an **additive sidecar**, exposed through a **new** native method, `parseSmsSession`, that lives alongside (and never replaces) `parseSms`. It does **not** affect the 25-sample golden oracle: `parseSms` is the graded path; `parseSmsSession` is an enhancement the v2 UI calls instead, and it **reuses the exact same stateless parser per message** before layering correlation and enrichment on top. The core five fields of each result are produced by the unchanged parser; the engine only **adds** enrichment fields in a **separate schema** — it never bends `ParsedResult`.
+
+It is a pure-Kotlin package (`parser/session/`) that takes an **ordered batch of SMS records** and returns enriched results plus cross-message rollups:
+
+- **Input record** `SmsRecord(text, receivedAt?, sender?)`. `receivedAt` (epoch ms from the inbox) is **never required** — for imported files it is absent, so the engine falls back to the in-body date, then to input order.
+- **Merchant canonicalisation** (`MerchantCanonicalizer`, config-driven via `merchant-categories.json`, seeded from a ported keyword→category map): `NETFLIX.COM/US`, `NETFLIX-MONTHLY`, `NETFLIX_SUBSCRIPTION` all collapse to one canonical `Netflix` (+ category `entertainment`); `null` when no token hits (conservative).
+- **Lifecycle threading** (`TransactionThreader`): groups related messages on a **strong** signature — `cardLastFour` **and** amount **and** canonical merchant within a configurable time window (15 min when `receivedAt` is present; same-day when only in-body dates exist) — plus explicit back-references already in the corpus (a refund "against original txn dated 02-04-26" links to its spend; a "converted to EMI" message links to the original spend). **Conservative (V4): no strong match ⇒ a standalone thread of one** — two ₹-equal spends with *different* card4 never merge. A wrong link is worse than no link.
+- **Recurring detection:** a canonical merchant is flagged `recurring` when it appears ≥2× across threads or matches a known-subscription token set; a future-auto-debit message surfaces as a recurring signal.
+
+The engine **does not** recalibrate confidence or change any decision — enrichment fields are purely additive. The session schema (`SessionResult { results, threads, merchants }`, where each `EnrichedResult` extends the byte-identical core `ParsedResult` with `threadId`, `merchantCanonical`, `category`, `recurring`, `linkedTo`, `receivedAt`) is defined in §7 of [buildphase-v2.md](buildphase-v2.md) and mapped to JS by a **separate** `SessionResultMapper` (the frozen core keys are emitted exactly as `ResultMapper` produces them). `results` stays 1:1 in input order, so the Messages view is a drop-in for the existing list.
+
+## 8.2 Liquid Glass UI
+
+The React Native screen was restyled to Apple's **iOS 26 "Liquid Glass"** language: a translucent floating control layer (a glass **toolbar** with the title + Import action, and a glass **segmented control** to switch **Messages ⇄ Insights**) over a scrolling content layer of glass cards (summary header, result rows, an iOS-sheet detail modal). The design is **adaptive** (light + dark). All the [docs/UI-Requirements.md](docs/UI-Requirements.md) numbers and row/modal states from section 1–4 above are preserved.
+
+- **One wrapper, library-agnostic.** Every translucent surface renders through a single `<Glass>` component (`src/components/Glass.tsx`) backed by `@sbaiahmed1/react-native-blur`; swapping the underlying blur library is a one-file change.
+- **API-33 requirement + graceful fallback (important).** Real-time GPU blur (AGSL / `RenderEffect`) on Android requires **API 33+**. `isGlassSupported()` gates on `Platform.Version >= 33`. **Below API 33** the wrapper falls back to a **solid translucent surface** (`rgba(250,250,252,0.72)` light / `rgba(28,28,30,0.72)` dark) with a hairline border, so the app still looks intentional and runs correctly all the way down to **`minSdk 23`**. No screen ever renders an opaque, unstyled block on older devices.
+
+The **Insights** segment surfaces what the contextual engine adds — lifecycle **threads** (auth → spend → refund/EMI/bill, with a net amount per thread), canonical **merchant** rollups (count, total, category), and **recurring** flags. The **Messages** segment is the existing per-SMS list, now with an additive enrichment line (canonical merchant + category chip, recurring badge) on included rows; the core parsed fields are unchanged.
+
+## 8.3 Import your own SMS
+
+An **Import** action in the floating toolbar opens the Android system file picker (SAF — no new permissions needed for user-initiated picks) and appends the file's messages to the rendered set:
+
+- **`.json`** — the `samples.json` shape `[{ "text": "..." }, …]` (also accepts a bare `["...", …]` array); honours optional `receivedAt` / `sender` keys for richer threading.
+- **`.txt`** — one SMS per line (blank lines skipped).
+
+Imported messages are mapped to `SmsRecord[]` and fed to **`parseSmsSession`** (the sidecar, **not** `parseSms`) over the combined bundled + imported set, so they get threaded and enriched alongside the 25 samples. Parsing is conservative: a malformed file shows a **non-blocking error banner** (never a crash), and very large imports are capped with a visible notice (no silent truncation). The file-parsing module is intentionally free of any native-module dependency, so it is unit-testable on its own.
+
+## 8.4 v2 verification status
+
+- **Kotlin (verified):** spaced month-name dates (`DateExtractor`), the contextual engine (`ContextualEngineTest` / `MerchantCanonicalizerTest` / `TransactionThreaderTest`), the `parseSmsSession` bridge/mapper key-set test, and the WS-7 load-bearing-exclusion tests all pass; the full suite is green and **`ParserGoldenTest` shows zero diffs** on the 25 samples (confirmed via a forced `--rerun-tasks` rebuild).
+- **TypeScript / RN (static):** the new bridge types and screens type-check; lint and Jest UI smoke tests pass where applicable.
+- **On-device (deferred):** the v2 RN screen (glass rendering, the SAF import flow, and the Insights segment) requires a real device/emulator to verify end-to-end and is **deferred — needs on-device verification** (this environment has no emulator; the earlier physical-device verification in sections above predates the v2 RN code). These items are marked `[device]` in [Progress.md](Progress.md).

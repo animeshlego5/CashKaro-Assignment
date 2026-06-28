@@ -303,3 +303,161 @@ Every substitution from `buildphase.md`, with the reason (the plan requires reco
 - [x] All 7 README sections present, specific; production note 627 words covering every bullet + all five OEMs + 30s budget.
 - [x] Submission checklist ticked (except the external recording link — user adds after recording).
 - [x] Build + tests green on the committed tree: `cd android; ./gradlew test` = 164 passing; `yarn android`/`installDebug` launched + verified on device. Repo is self-contained (yarn.lock + pinned `.yarn/releases` committed) so a fresh checkout reproduces.
+
+---
+
+# Build Plan v2 — Liquid Glass UI · File Import · Contextual Engine
+
+> Companion to [buildphase-v2.md](buildphase-v2.md). **Everything below is ADDITIVE to the assignment-core build above (Phases 0–7).** Prime directive: `parseSms` and the frozen `ParsedResult` schema are unchanged — the 25-sample `ParserGoldenTest` oracle must show **zero diffs**. The contextual engine is a separate sidecar (`parseSmsSession`) with its own schema; it never touches the graded path.
+> **Convention:** `[ ]` not started · `[~]` in progress · `[x]` done · `[device]` deferred — needs on-device verification.
+
+## v2 status at a glance
+
+| WS | Title | State |
+| --- | --- | --- |
+| WS-1 | Kotlin: spaced month-name dates | ✅ tests green · golden zero-diff |
+| WS-2 | Kotlin: contextual engine (threading · canonicalisation · recurring) | ✅ tests green · golden zero-diff |
+| WS-3 | Bridge: `parseSmsSession` + enriched JS schema | ✅ JVM + TS verified |
+| WS-4 | React Native: iOS 26 Liquid Glass redesign | ⏳ built · device render deferred |
+| WS-5 | React Native: file import ("add more SMS") | ⏳ built · device flow deferred |
+| WS-6 | React Native: Insights view (threads · merchants · recurring) | ⏳ built · device render deferred |
+| WS-7 | Exclusions: keep all three + prove load-bearing (D2) | ✅ tests green · no rule removed |
+| WS-8 | Tests sweep (golden regression gate) | ✅ Kotlin suite green · golden zero-diff |
+| WS-9 | Docs & Progress (this section + README) | ✅ this update |
+
+> **Why some items are deferred:** v2 RN work (glass surfaces, file picker, Insights segment) requires a real device/emulator to verify rendering and the SAF file-pick flow. Per the v2 workstream rules these were implemented and statically verified (`tsc`/`lint`/Jest where applicable) but **not** device-built (no emulator in this environment; the existing physical-device verification predates the v2 RN code). Those rows are marked `[device]` below.
+
+---
+
+## WS-1 — Kotlin: spaced month-name dates
+
+**Tasks**
+- [x] Widen `DateExtractor.kt` candidate regex with a **separate** alternation branch `\b\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}\b` joined to the unchanged original dash/slash branch (original branch byte-identical).
+- [x] Append four formats to `dates.json` (main + test-resource mirror): `dd MMM yyyy`, `dd MMM yy`, `d MMM yyyy`, `dd MMMM yyyy` — original 5 kept first to preserve format priority.
+- [x] Preserve 2000-pivot, strict `isLenient=false` full-token parse, `< MIN_YEAR` guard, and "first valid date wins, left-to-right".
+
+**Exit**
+- [x] New `DateExtractorTest` cases for the three spaced shapes (+ first-date-wins, invalid-day fall-through, non-month negative) pass.
+- [x] **`ParserGoldenTest` zero diffs** on the 25 samples (confirmed via forced `--rerun-tasks`).
+- [x] Full Kotlin suite green.
+
+---
+
+## WS-2 — Kotlin: contextual engine (lifecycle threading + merchant canonicalisation/recurring)
+
+> New pure-Kotlin package `parser/session/` (`ContextualEngine`, `TransactionThreader`, `MerchantCanonicalizer`, `CorrelationSignals`, `model/SessionModels`). Reuses the existing stateless `SmsParser` per message; layers correlation + enrichment on top. Core `ParsedResult` untouched (V1/V6).
+
+**Tasks**
+- [x] `SmsRecord(text, receivedAt?, sender?)` input model; date fallback `receivedAt → in-body date → input order`; `receivedAt` never required.
+- [x] Per-message parse reuses the existing stateless `SmsParser` (core fields untouched).
+- [x] `MerchantCanonicalizer` — config-driven (`merchant-categories.json`, ported from Moneyprism `categories.dart`), first-match, substring-over-normalised; `NETFLIX.COM/US` · `NETFLIX-MONTHLY` · `NETFLIX_SUBSCRIPTION` → `Netflix`; null when no token hits.
+- [x] `TransactionThreader` — union-find over a **strong** key (card4 AND amount AND canonical merchant within a config time window: 15-min with `receivedAt`, same-day for date-only) plus explicit back-reference links (sample 21 refund → original spend; sample 17 EMI-conversion → original spend). Conservative (V4): no strong signal ⇒ singleton thread.
+- [x] Recurring detection: canonical merchant flagged `recurring` when it appears ≥2× or matches a known-subscription token set; future-auto-debit (sample 14) surfaced as a recurring signal.
+- [x] No confidence recalibration / no decision changes (D4) — enrichment is purely additive.
+- [x] `ParserConfig`/`JsonConfigParser` extended for the new merchant-category config (mirrored to test resources).
+
+**Exit**
+- [x] `ContextualEngineTest`/`MerchantCanonicalizerTest`/`TransactionThreaderTest` prove: Netflix variants collapse to one merchant; sample 21 threads onto its spend; sample 17 threads onto its spend; a recurring merchant is flagged; two ₹-equal spends with different card4 do **not** merge.
+- [x] Engine never changes the underlying `ParsedResult` core fields.
+- [x] **`ParserGoldenTest` zero diffs**; full Kotlin suite green.
+
+---
+
+## WS-3 — Bridge: `parseSmsSession` native method + enriched JS schema
+
+**Tasks**
+- [x] `@ReactMethod parseSmsSession(records, promise)` added to `SmsParserModule.kt` (reuses the lazily-built `parser` + a lazy `ContextualEngine`; iterates by `size()` C6; `promise.reject` on error, never throws across the bridge C8). `parseSms` method unchanged.
+- [x] New `parser/session/SessionResultMapper.kt` (separate from `ResultMapper`) maps engine output to `WritableMap`/`WritableArray`; the five frozen core keys are emitted byte-identically for the embedded core result.
+- [x] `src/native/SmsParser.ts` adds `parseSmsSession(records)` + `SmsRecord`, `EnrichedResult`, `Thread`, `MerchantSummary`, `SessionResult` types (§7). Existing `parseSms` wrapper + `ParsedResult`/`Transaction` types unchanged.
+
+**Exit**
+- [x] JVM test asserts the session map's key set.
+- [x] JS types compile (`tsc --noEmit`).
+- [x] `FieldNameSnapshotTest` for the core schema still passes (frozen keys intact).
+
+---
+
+## WS-4 — React Native: iOS 26 Liquid Glass redesign
+
+> Single `<Glass>` wrapper (`src/components/Glass.tsx`) over `@sbaiahmed1/react-native-blur`; the rest of the UI is library-agnostic. Adaptive light/dark via `src/theme/ThemeContext.tsx`. New chrome: `Toolbar.tsx` (title + Import) and `SegmentedControl.tsx` (Messages ⇄ Insights). Components restyled as glass cards.
+
+**Tasks**
+- [x] `<Glass>` wrapper with capability detection (`isGlassSupported()`: iOS true; Android `Platform.Version >= 33`).
+- [x] **V5 fallback** below API 33: solid translucent surface (`rgba(250,250,252,0.72)` light / `rgba(28,28,30,0.72)` dark) + hairline border, so the app looks intentional down to `minSdk 23`.
+- [x] Token overhaul in `theme.ts` (iOS palette, type scale, 8-pt spacing, concentric radii, shadow) with light + dark support.
+- [x] Floating glass toolbar + segmented control above the scrolling list (content/controls separation).
+- [x] Glass-card restyle of `SummaryHeader`, `ResultRow` (included/excluded), `DetailModal` (iOS sheet).
+- [device] Reduced-motion handling and final spring tuning verified statically; runtime behaviour is a device check.
+
+**Exit**
+- [x] TypeScript compiles; Jest UI smoke tests green; lint clean.
+- [device] Screen builds and renders on a real device/emulator; glass on API 33+, fallback below; light + dark legible; no horizontal overflow. **Deferred — needs on-device verification** (no emulator available this environment).
+
+---
+
+## WS-5 — React Native: file import ("add more SMS")
+
+> `src/import/` — `pickFile.ts` (SAF picker), `parseImport.ts` (native-module-free parser), `useImport.ts` (state + calls `parseSmsSession` over combined bundled + imported records).
+
+**Tasks**
+- [x] Import action in the floating glass toolbar opens the system picker.
+- [x] Accept `.json` (`[{text,…}]` and bare `["…"]`, honouring `receivedAt`/`sender` when present) and `.txt` (one SMS per line, blanks skipped); detect by content/extension.
+- [x] Map to `SmsRecord[]` and call **`parseSmsSession`** (not `parseSms`) over the combined set; append to state with a count notice.
+- [x] Malformed file ⇒ non-blocking error banner (`Banner.tsx`), never crash; large-import cap with a visible notice.
+
+**Exit**
+- [x] `parseImport` maps `.json`/`.txt` to records (unit-level / static verification); types compile; lint clean.
+- [device] Importing a sample `.json` and `.txt` renders new rows and threads them with the bundled samples; bad files show a friendly error. **Deferred — needs on-device verification** (SAF file-pick flow).
+
+---
+
+## WS-6 — React Native: Insights view (threads · merchants · recurring)
+
+> `InsightsView.tsx` + `EnrichmentLine.tsx` + `RecurringBadge.tsx`; `ParserScreen.tsx` now runs `parseSmsSession` over the bundled samples and switches Messages ⇄ Insights via the segmented control.
+
+**Tasks**
+- [x] Messages segment: existing per-SMS list with an additive enrichment line on included rows (canonical merchant + category chip; recurring badge where flagged). Core fields unchanged.
+- [x] Insights segment: Threads (primary txn + linked lifecycle events + net amount), Merchants (canonical rollups: count/total/category), Recurring (flagged merchants).
+- [x] Tapping any item opens the same iOS sheet detail with thread/enrichment info.
+
+**Exit**
+- [x] Component renders from a mocked `parseSmsSession`; types compile; lint clean.
+- [device] With the 25 samples (+ an imported file) the Insights segment shows ≥1 multi-message thread, the Netflix rollup as one merchant, and a recurring flag. **Deferred — needs on-device verification.**
+
+---
+
+## WS-7 — Exclusions: keep all three + prove load-bearing (D2)
+
+**Tasks**
+- [x] **Removed nothing** — all three rules (`SALARY_CREDIT`, `INVESTMENT`, `INSURANCE`) remain in `exclusion-rules.json`.
+- [x] Added 3 engine-level cases to `ExclusionEngineTest` (card-based INSURANCE premium, card-based SIP INVESTMENT, salary → SALARY_CREDIT).
+- [x] Added 2 end-to-end cases to `RequiredCategoriesTest` driving the full `SmsParser` — `decision=EXCLUDE` with reason INSURANCE/INVESTMENT and `transaction == null` (proving they are not classified as INCLUDE/DEBIT and the `notCreditCard` SAVINGS catch-all cannot save them). Covers the example `"Rs 12,500 spent on your HDFC Bank Credit Card xx5678 for HDFC Life Insurance Premium"` ⇒ EXCLUDE INSURANCE.
+- [x] Each block cites buildphase-v2.md D2 so a future reader does not "simplify" the rules away.
+
+**Exit**
+- [x] New tests green; the three rules remain in `exclusion-rules.json` (test-only, no production code/config changed).
+- [x] **`ParserGoldenTest` zero diffs.**
+
+---
+
+## WS-8 — Tests sweep (regression gate)
+
+- [x] WS-1, WS-2, WS-3, WS-7 Kotlin tests added under their respective packages.
+- [x] **`ParserGoldenTest` (25-sample oracle) shows zero diffs** — the regression gate for all of v2 (confirmed via forced `--rerun-tasks` after fresh recompile).
+- [x] Full existing Kotlin suite remains green (`./gradlew testDebugUnitTest` / `test`).
+- [~] RN: TS compiles; Jest smoke + lint where applicable.
+- [device] `yarn android` device build of the v2 RN screen. **Deferred — needs on-device verification.**
+
+**Exit**
+- [x] `./gradlew test` green with `ParserGoldenTest` zero diffs.
+- [device] Full on-device run (Messages + Insights + import) — deferred.
+
+---
+
+## WS-9 — Docs & Progress
+
+- [x] This v2 section added to `Progress.md`, mirroring WS-1…WS-8, ticked per implementer summaries; device-only items marked `[device]`.
+- [x] README updated with "Contextual engine (beyond the assignment)", "Liquid Glass UI", "Import your own SMS" sections; API-33 glass requirement + `< API 33` fallback noted; assignment-compliance + production-Android notes kept intact; `parseSms` stated unchanged and graded; engine stated to be an additive sidecar not affecting the golden oracle.
+
+**Exit**
+- [x] README + Progress.md updated; a reader can tell assignment-core (Phases 0–7) from v2-additive (WS-1…WS-9).
