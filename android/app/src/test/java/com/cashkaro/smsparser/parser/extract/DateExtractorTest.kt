@@ -145,6 +145,47 @@ class DateExtractorTest {
         assertNull(extract("ref 020426 processed successfully"))
     }
 
+    // ---- WS-1: spaced month-name dates ----
+
+    @Test
+    fun spaced_ddSpaceMMMSpaceYyyy() {
+        // "03 Apr 2026"
+        assertEquals("2026-04-03", extract("INR 1,250.00 spent on your card on 03 Apr 2026 at SHOP."))
+    }
+
+    @Test
+    fun spaced_dSpaceMMMSpaceYy_singleDigitDay_twoDigitYear() {
+        // "3 Apr 26" — single-digit day, two-digit year pivots into the 2000s.
+        assertEquals("2026-04-03", extract("Spent Rs 99 on 3 Apr 26 at CAFE PRIME."))
+    }
+
+    @Test
+    fun spaced_ddSpaceMMMMSpaceYyyy_fullMonthName() {
+        // "03 April 2026" — full month name (MMMM).
+        assertEquals("2026-04-03", extract("Purchase of Rs 500 on 03 April 2026 posted."))
+    }
+
+    @Test
+    fun spaced_firstValidDateWins_leftToRight() {
+        // Two spaced dates; the first (left-most) valid one is returned.
+        assertEquals(
+            "2026-04-12",
+            extract("Refund on 12 Apr 2026 against original txn dated 02 Apr 2026."),
+        )
+    }
+
+    @Test
+    fun spaced_invalidSpacedDateFallsThroughToValidOne() {
+        // "45 Apr 2026" is not a real day under strict parsing; skip to the valid one.
+        assertEquals("2026-04-05", extract("garbled 45 Apr 2026 then real 05 Apr 2026"))
+    }
+
+    @Test
+    fun spaced_unknownMonthWordIsNotADate() {
+        // A 3-9 letter word that is not a month must not parse as a date.
+        assertNull(extract("paid 10 Rupees today for lunch"))
+    }
+
     // ---- empty config => no parsers => null (degrades safely) ----
 
     @Test

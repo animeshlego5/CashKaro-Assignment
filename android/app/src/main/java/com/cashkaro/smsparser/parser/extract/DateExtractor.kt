@@ -30,8 +30,9 @@ import java.util.Locale
  * candidate tokens are scanned left-to-right and the first successful parse wins.
  *
  * Formats arrive from dates.json (e.g. `dd/MM/yy`, `dd-MM-yyyy`, `dd-MM-yy`,
- * `dd-MMM-yyyy`, `dd-MMM-yy`); adding a new shape is a config edit, no code
- * change (C5).
+ * `dd-MMM-yyyy`, `dd-MMM-yy`, plus spaced month-name shapes `dd MMM yyyy`,
+ * `dd MMM yy`, `d MMM yyyy`, `dd MMMM yyyy`); adding a new shape is a config
+ * edit, no code change (C5).
  */
 class DefaultDateExtractor(formats: List<String>) : DateExtractor {
 
@@ -57,11 +58,20 @@ class DefaultDateExtractor(formats: List<String>) : DateExtractor {
     }
 
     /**
-     * Date-shaped tokens: `d` or `dd`, a `-` or `/` separator, a numeric OR
-     * 3-letter alphabetic month, the same kind of separator, then a 2-to-4-digit
-     * year. Deliberately loose — the configured formats do the real validation.
+     * Date-shaped tokens, two alternative shapes (the configured formats do the
+     * real validation — this is deliberately loose):
+     *  - dash/slash: `d`/`dd`, a `-` or `/` separator, a numeric OR 3-letter
+     *    alphabetic month, the same kind of separator, then a 2-to-4-digit year
+     *    (e.g. `02/04/26`, `04-Apr-26`, `03-04-2026`).
+     *  - spaced month-name: `d`/`dd`, whitespace, a 3-to-9-letter month name,
+     *    whitespace, then a 2-to-4-digit year (e.g. `03 Apr 2026`, `3 Apr 26`,
+     *    `03 April 2026`). Kept as a SEPARATE alternative so the original dash/
+     *    slash branch is byte-for-byte unchanged.
      */
-    private val candidate = Regex("\\b\\d{1,2}[-/][A-Za-z0-9]{1,3}[-/]\\d{2,4}\\b")
+    private val candidate = Regex(
+        "\\b\\d{1,2}[-/][A-Za-z0-9]{1,3}[-/]\\d{2,4}\\b" +
+            "|\\b\\d{1,2}\\s+[A-Za-z]{3,9}\\s+\\d{2,4}\\b",
+    )
 
     override fun extract(sms: NormalizedSms): String? {
         if (parsers.isEmpty()) return null

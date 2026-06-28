@@ -124,4 +124,35 @@ class RequiredCategoriesTest {
         assertNull(r.transaction)
         assertTrue("malformed confidence should be ~0.1", r.confidence <= 0.2)
     }
+
+    // ---------------------------------------------------------------------
+    // D2 (buildphase-v2.md §3): KEEP SALARY_CREDIT / INVESTMENT / INSURANCE.
+    // End-to-end proof that they are LOAD-BEARING for CARD-BASED messages — a
+    // future reader must NOT "simplify" these rules away. These messages carry a
+    // credit-card signal AND a spend verb; without the dedicated exclusion rules
+    // the parser would wrongly INCLUDE them as a DEBIT spend (and the generic
+    // notCreditCard SAVINGS_ACCOUNT catch-all would not fire to save us). The
+    // assertions below pin decision=EXCLUDE with the specific reason code and a
+    // null transaction (never INCLUDE/DEBIT, never SAVINGS_ACCOUNT/LOW_CONFIDENCE).
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun card_based_insurance_premium_excludes_as_insurance_not_a_spend() {
+        val r = parser.parse(
+            "Rs 12,500 spent on your HDFC Bank Credit Card xx5678 for HDFC Life Insurance Premium.",
+        )
+        assertEquals(Decision.EXCLUDE, r.decision)
+        assertEquals("INSURANCE", r.excludeReason?.name)
+        assertNull(r.transaction)
+    }
+
+    @Test
+    fun card_based_sip_excludes_as_investment_not_a_spend() {
+        val r = parser.parse(
+            "Rs 5,000 spent on your HDFC Bank Credit Card xx5678 towards your SIP in Mirae Asset Mutual Fund.",
+        )
+        assertEquals(Decision.EXCLUDE, r.decision)
+        assertEquals("INVESTMENT", r.excludeReason?.name)
+        assertNull(r.transaction)
+    }
 }

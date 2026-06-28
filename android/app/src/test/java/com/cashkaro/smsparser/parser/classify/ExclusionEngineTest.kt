@@ -322,4 +322,42 @@ class ExclusionEngineTest {
         val s = "Rs 250.00 spent on your HDFC Bank Credit Card xx9999 at STARBUCKS on 01-06-26."
         assertNull(reasonOf(s))
     }
+
+    // ---------------------------------------------------------------------
+    // D2 (buildphase-v2.md §3): KEEP all three of SALARY_CREDIT, INVESTMENT,
+    // INSURANCE. These are LOAD-BEARING — do NOT "simplify" them away.
+    //
+    // The dangerous case is a CARD-BASED insurance/investment debit: the SMS
+    // carries a credit-card signal AND a spend verb ("spent ... on your Credit
+    // Card"), so without the INSURANCE/INVESTMENT rules it would sail past every
+    // account-only exclusion (SAVINGS_ACCOUNT is notCreditCard:true and would NOT
+    // fire) and be wrongly classified as an INCLUDE/DEBIT spend. The specific
+    // INSURANCE/INVESTMENT reason codes are also spec-preferred over a generic
+    // SAVINGS_ACCOUNT / LOW_CONFIDENCE fallback. The tests below lock this in.
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun card_based_insurance_premium_is_excluded_as_insurance_not_a_spend() {
+        // D2 guard: a credit-card insurance premium. No "A/c" token, so the
+        // notCreditCard SAVINGS catch-all cannot fire; only the INSURANCE rule
+        // stops this from being read as a countable card spend.
+        val s = "Rs 12,500 spent on your HDFC Bank Credit Card xx5678 for HDFC Life Insurance Premium."
+        assertEquals(ExcludeReason.INSURANCE, reasonOf(s))
+    }
+
+    @Test
+    fun card_based_sip_investment_is_excluded_as_investment_not_a_spend() {
+        // D2 guard: a credit-card SIP/mutual-fund debit. Carries a credit-card
+        // signal + spend verb but must be excluded as INVESTMENT, not counted.
+        val s = "Rs 5,000 spent on your HDFC Bank Credit Card xx5678 towards your SIP in Mirae Asset Mutual Fund."
+        assertEquals(ExcludeReason.INVESTMENT, reasonOf(s))
+    }
+
+    @Test
+    fun card_based_salary_disbursal_card_is_excluded_as_salary_credit() {
+        // D2 guard: SALARY_CREDIT must remain. A salary-related message must not
+        // slip through as a spend even when a card-like token is present.
+        val s = "Rs 50,000 credited as SALARY to your HDFC Bank account linked Credit Card xx5678."
+        assertEquals(ExcludeReason.SALARY_CREDIT, reasonOf(s))
+    }
 }
