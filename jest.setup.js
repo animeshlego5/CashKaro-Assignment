@@ -1,18 +1,11 @@
 /**
- * Jest setup — mock the native-only libraries added in WS-4 so the device-free
- * UI smoke tests run with no Android module / emulator. These libraries ship
- * codegen native components (real blur, reanimated worklets, gesture handler)
- * that have no JS implementation under the `react-native` jest preset.
+ * Jest setup — mock the native-only libraries added in WS-4/WS-5 so the
+ * device-free UI smoke tests run with no Android module / emulator. These
+ * libraries ship codegen native components (real blur, gesture handler, SAF
+ * picker, fs) that have no JS implementation under the `react-native` jest preset.
  */
 /* eslint-env jest */
 /* global jest */
-
-// react-native-reanimated ships an official jest mock.
-try {
-  require('react-native-reanimated').setUpTests?.();
-} catch (e) {
-  // mock below covers it
-}
 
 // @sbaiahmed1/react-native-blur — render plain Views in place of native blur.
 jest.mock('@sbaiahmed1/react-native-blur', () => {

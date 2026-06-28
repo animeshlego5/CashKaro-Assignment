@@ -1,5 +1,6 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useRef} from 'react';
 import {
+  Animated,
   Modal,
   Pressable,
   ScrollView,
@@ -8,12 +9,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   EnrichedResult,
@@ -62,25 +57,47 @@ export default function DetailModal({
 }): React.JSX.Element {
   const {palette, reduceMotion} = useTheme();
   const insets = useSafeAreaInsets();
-  // 1 = presented, 0 = hidden. Drives a translateY + backdrop fade.
-  const progress = useSharedValue(0);
+  // 1 = presented, 0 = hidden. Drives a translateY + backdrop fade. Uses RN's
+  // built-in Animated (no native C++ build) so the glass UI compiles without the
+  // reanimated NDK toolchain; native-driven so it stays off the JS thread.
+  const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      progress.value = reduceMotion
-        ? withTiming(1, {duration: 120})
-        : withSpring(1, {damping: 18, stiffness: 220, mass: 0.9});
+      const present = reduceMotion
+        ? Animated.timing(progress, {
+            toValue: 1,
+            duration: 120,
+            useNativeDriver: true,
+          })
+        : Animated.spring(progress, {
+            toValue: 1,
+            damping: 18,
+            stiffness: 220,
+            mass: 0.9,
+            useNativeDriver: true,
+          });
+      present.start();
     } else {
-      progress.value = withTiming(0, {duration: reduceMotion ? 80 : 180});
+      Animated.timing(progress, {
+        toValue: 0,
+        duration: reduceMotion ? 80 : 180,
+        useNativeDriver: true,
+      }).start();
     }
   }, [visible, reduceMotion, progress]);
 
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{translateY: (1 - progress.value) * 600}],
-  }));
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
-  }));
+  const sheetStyle = {
+    transform: [
+      {
+        translateY: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [600, 0],
+        }),
+      },
+    ],
+  };
+  const backdropStyle = {opacity: progress};
 
   return (
     <Modal

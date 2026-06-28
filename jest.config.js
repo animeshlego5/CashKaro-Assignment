@@ -6,7 +6,7 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(' +
       '@react-native|react-native|' +
-      'react-native-reanimated|react-native-gesture-handler|' +
+      'react-native-gesture-handler|' +
       'react-native-safe-area-context|@sbaiahmed1/react-native-blur' +
       ')/)',
   ],
