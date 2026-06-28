@@ -1,6 +1,18 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      WS-5 file import uses a user-initiated SAF pick (react-native-document-picker)
+      + react-native-fs to read the chosen file. SAF picks grant scoped read access
+      to exactly that file, so NO storage permission is required. react-native-fs
+      injects a legacy WRITE_EXTERNAL_STORAGE permission via manifest merging; we
+      strip it here to keep the app's permission set unchanged (buildphase-v2.md WS-5).
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        tools:node="remove" />
 
     <application
       android:name=".MainApplication"

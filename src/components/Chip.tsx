@@ -1,23 +1,35 @@
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
-import {colors, space} from '../theme';
+import {radius, space} from '../theme';
+import {useTheme} from '../theme/ThemeContext';
 
-/** A small rounded badge — used for exclude reasons and transaction types. */
-export default function Chip({label, color}: {label: string; color?: string}): React.JSX.Element {
+/** A small rounded badge — used for exclude reasons, txn types and categories. */
+export default function Chip({
+  label,
+  color,
+}: {
+  label: string;
+  color?: string;
+}): React.JSX.Element {
+  const {palette} = useTheme();
+  const tint = color ?? palette.chipText;
   return (
-    <View style={[styles.chip, color ? {backgroundColor: color + '22'} : null]}>
-      <Text style={[styles.text, color ? {color} : null]}>{label}</Text>
+    <View
+      style={[
+        styles.chip,
+        {backgroundColor: color ? color + '22' : palette.chipBg},
+      ]}>
+      <Text style={[styles.text, {color: tint}]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   chip: {
-    backgroundColor: colors.chipBg,
-    borderRadius: 6,
+    borderRadius: radius.chip,
     paddingHorizontal: space.sm,
-    paddingVertical: 2,
+    paddingVertical: 3,
     alignSelf: 'flex-start',
   },
-  text: {color: colors.chipText, fontSize: 11, fontWeight: '700', letterSpacing: 0.3},
+  text: {fontSize: 11, fontWeight: '700', letterSpacing: 0.3},
 });

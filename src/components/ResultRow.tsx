@@ -1,50 +1,88 @@
 import React from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
-import {ParsedResult} from '../native/SmsParser';
-import {bankInitials, colors, formatAmount, space} from '../theme';
+import {EnrichedResult, isEnriched, ParsedResult} from '../native/SmsParser';
+import {
+  bankInitials,
+  elevation,
+  formatAmount,
+  radius,
+  space,
+  type,
+} from '../theme';
+import {useTheme} from '../theme/ThemeContext';
 import Chip from './Chip';
 import ConfidenceIndicator from './ConfidenceIndicator';
+import EnrichmentLine from './EnrichmentLine';
+import Glass from './Glass';
 
 /**
- * One result row (docs/UI-Requirements.md §2). Included rows show the bank
- * initials, merchant, amount+currency, date, type and confidence; excluded rows
- * are dimmed and show the reason chip, a short SMS preview and confidence.
+ * One result row (docs/UI-Requirements.md §2), styled as a Liquid Glass card.
+ * Included rows show the bank initials, merchant, amount+currency, date, type
+ * and confidence; excluded rows are dimmed and show the reason chip, a short
+ * SMS preview and confidence.
+ *
+ * WS-6: when the row carries contextual-engine enrichment (i.e. it came from
+ * `parseSmsSession`), an additive enrichment line is shown on INCLUDED rows —
+ * the canonical merchant, a category chip and a "Recurring" badge where flagged.
+ * The core parsed fields above it are unchanged (V1/V6); a plain `parseSms`
+ * result (no enrichment keys) renders exactly as before.
  */
 export default function ResultRow({
   result,
   onPress,
 }: {
-  result: ParsedResult;
+  result: ParsedResult | EnrichedResult;
   onPress: () => void;
 }): React.JSX.Element {
   const included = result.decision === 'INCLUDE' && result.transaction != null;
   return (
-    <TouchableOpacity
-      style={[styles.row, !included && styles.rowDimmed]}
-      onPress={onPress}
-      activeOpacity={0.6}>
-      {included ? <IncludedRow result={result} /> : <ExcludedRow result={result} />}
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={styles.wrap}>
+      <Glass
+        radius={radius.card}
+        elevation={elevation.card}
+        style={included ? undefined : styles.dimmed}>
+        <View style={styles.inner}>
+          {included ? (
+            <IncludedRow result={result} />
+          ) : (
+            <ExcludedRow result={result} />
+          )}
+        </View>
+      </Glass>
     </TouchableOpacity>
   );
 }
 
-function IncludedRow({result}: {result: ParsedResult}): React.JSX.Element {
+function IncludedRow({
+  result,
+}: {
+  result: ParsedResult | EnrichedResult;
+}): React.JSX.Element {
+  const {palette} = useTheme();
   const t = result.transaction!;
-  const tone = t.type === 'DEBIT' ? colors.debit : colors.credit;
+  const tone = t.type === 'DEBIT' ? palette.debit : palette.credit;
   return (
-    <>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{bankInitials(t.bank)}</Text>
+    <View style={styles.row}>
+      <View style={[styles.avatar, {backgroundColor: palette.avatarBg}]}>
+        <Text style={[styles.avatarText, {color: palette.avatarText}]}>
+          {bankInitials(t.bank)}
+        </Text>
       </View>
       <View style={styles.body}>
         <View style={styles.line}>
-          <Text style={styles.primary} numberOfLines={1}>
+          <Text
+            style={[styles.primary, {color: palette.label}]}
+            numberOfLines={1}>
             {t.merchant ?? t.bank ?? 'Transaction'}
           </Text>
-          <Text style={[styles.amount, {color: tone}]}>{formatAmount(t.amount, t.currency)}</Text>
+          <Text style={[styles.amount, {color: tone}]}>
+            {formatAmount(t.amount, t.currency)}
+          </Text>
         </View>
         <View style={styles.line}>
-          <Text style={styles.meta} numberOfLines={1}>
+          <Text
+            style={[styles.meta, {color: palette.secondaryLabel}]}
+            numberOfLines={1}>
             {t.bank ?? 'Unknown bank'}
             {t.cardLastFour ? ` ••${t.cardLastFour}` : ''}
             {t.date ? ` · ${t.date}` : ''}
@@ -54,19 +92,23 @@ function IncludedRow({result}: {result: ParsedResult}): React.JSX.Element {
         <View style={styles.chipLine}>
           <Chip label={t.type} color={tone} />
         </View>
+        {isEnriched(result) ? <EnrichmentLine result={result} /> : null}
       </View>
-    </>
+    </View>
   );
 }
 
 function ExcludedRow({result}: {result: ParsedResult}): React.JSX.Element {
+  const {palette} = useTheme();
   return (
     <View style={styles.body}>
       <View style={styles.line}>
         <Chip label={result.excludeReason ?? 'EXCLUDED'} />
         <ConfidenceIndicator confidence={result.confidence} />
       </View>
-      <Text style={styles.preview} numberOfLines={2}>
+      <Text
+        style={[styles.preview, {color: palette.secondaryLabel}]}
+        numberOfLines={2}>
         {result.rawSms}
       </Text>
     </View>
@@ -74,31 +116,28 @@ function ExcludedRow({result}: {result: ParsedResult}): React.JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: 10,
-    padding: space.md,
-    marginBottom: space.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rowDimmed: {backgroundColor: '#fafafa', opacity: 0.85},
+  wrap: {marginBottom: space.sm},
+  inner: {padding: space.md},
+  dimmed: {opacity: 0.72},
+  row: {flexDirection: 'row'},
   avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.accent,
+    width: 40,
+    height: 40,
+    borderRadius: radius.control,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: space.md,
   },
-  avatarText: {color: '#ffffff', fontSize: 13, fontWeight: '800'},
+  avatarText: {fontSize: 13, fontWeight: '800'},
   body: {flex: 1},
-  line: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
-  chipLine: {flexDirection: 'row', marginTop: space.xs},
-  primary: {flex: 1, fontSize: 15, fontWeight: '700', color: colors.text, marginRight: space.sm},
-  amount: {fontSize: 15, fontWeight: '800'},
-  meta: {flex: 1, fontSize: 12, color: colors.subtle, marginRight: space.sm, marginTop: 2},
-  preview: {fontSize: 13, color: colors.subtle, marginTop: space.xs, lineHeight: 18},
+  line: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  chipLine: {flexDirection: 'row', marginTop: space.sm},
+  primary: {flex: 1, ...type.headline, marginRight: space.sm},
+  amount: {fontSize: 17, fontWeight: '700'},
+  meta: {flex: 1, ...type.footnote, marginRight: space.sm, marginTop: 2},
+  preview: {...type.footnote, marginTop: space.sm, lineHeight: 18},
 });

@@ -1,0 +1,17 @@
+[
+  {
+    "text": "INR 2,499.00 spent on HDFC Bank Credit Card xx5678 at NETFLIX.COM/US on 12-04-2026. Avl Limit: INR 1,40,000.00.",
+    "receivedAt": 1775990400000,
+    "sender": "HDFCBK"
+  },
+  {
+    "text": "Rs 2,499.00 refund credited to your HDFC Bank Credit Card xx5678 against NETFLIX-MONTHLY txn dated 12-04-26.",
+    "receivedAt": 1776076800000,
+    "sender": "HDFCBK"
+  },
+  {
+    "text": "INR 899.00 spent on Axis Bank Credit Card xx9876 at SPOTIFY on 13 Apr 2026. Available Limit: INR 80,000.00.",
+    "sender": "AXISBK"
+  },
+  "INR 1,150.00 spent on HDFC Bank Credit Card xx5678 at BLINKIT on 14-04-2026. Avl Limit: INR 1,38,850.00."
+]

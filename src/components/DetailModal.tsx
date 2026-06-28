@@ -1,81 +1,329 @@
-import React from 'react';
-import {Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
-import {ParsedResult} from '../native/SmsParser';
-import {colors, formatAmount, space} from '../theme';
+import React, {useEffect} from 'react';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {
+  EnrichedResult,
+  isEnriched,
+  ParsedResult,
+  Thread,
+} from '../native/SmsParser';
+import {
+  categoryLabel,
+  elevation,
+  formatAmount,
+  radius,
+  space,
+  type,
+} from '../theme';
+import {useTheme} from '../theme/ThemeContext';
+import Glass from './Glass';
 
 /**
  * Detail modal (docs/UI-Requirements.md §3): raw SMS, decision, exclude reason
  * (if any), parsed transaction fields (if any) and confidence.
+ *
+ * WS-4: presented as an iOS sheet — a glass surface with a grabber handle that
+ * springs up on present and slides down on dismiss. The spring is toned down to
+ * a plain timing when Reduce Motion is enabled (AccessibilityInfo).
+ *
+ * WS-6: the same sheet opens for any item (a Messages row, a thread event, a
+ * merchant rollup). When the result carries contextual-engine enrichment it
+ * additionally shows an Enrichment section (canonical merchant, category,
+ * recurring, linked messages) and, when the item belongs to a multi-message
+ * thread, a Thread section (net amount + the ordered lifecycle stages). These
+ * are purely additive; the five core fields above them are byte-identical to
+ * parseSms (V1/V6).
  */
 export default function DetailModal({
   result,
+  thread,
   visible,
   onClose,
 }: {
-  result: ParsedResult | null;
+  result: ParsedResult | EnrichedResult | null;
+  /** The thread this result belongs to, when it is part of a multi-event one. */
+  thread?: Thread | null;
   visible: boolean;
   onClose: () => void;
 }): React.JSX.Element {
+  const {palette, reduceMotion} = useTheme();
+  const insets = useSafeAreaInsets();
+  // 1 = presented, 0 = hidden. Drives a translateY + backdrop fade.
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      progress.value = reduceMotion
+        ? withTiming(1, {duration: 120})
+        : withSpring(1, {damping: 18, stiffness: 220, mass: 0.9});
+    } else {
+      progress.value = withTiming(0, {duration: reduceMotion ? 80 : 180});
+    }
+  }, [visible, reduceMotion, progress]);
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{translateY: (1 - progress.value) * 600}],
+  }));
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+  }));
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.sheet}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Parsed Result</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
-              <Text style={styles.close}>Close</Text>
-            </TouchableOpacity>
-          </View>
+    <Modal
+      visible={visible}
+      animationType="none"
+      transparent
+      onRequestClose={onClose}>
+      <View style={styles.fill}>
+        <Animated.View style={[styles.backdrop, backdropStyle]}>
+          <Pressable
+            style={styles.fill}
+            onPress={onClose}
+            accessibilityLabel="Dismiss"
+          />
+        </Animated.View>
 
-          {result ? (
-            <ScrollView>
-              <Field label="Decision" value={result.decision} />
-              {result.excludeReason ? <Field label="Exclude reason" value={result.excludeReason} /> : null}
-              <Field label="Confidence" value={`${Math.round(result.confidence * 100)}%`} />
+        <Animated.View style={[styles.sheetWrap, sheetStyle]}>
+          <Glass
+            radius={radius.outer}
+            elevation={elevation.sheet}
+            style={styles.sheet}>
+            <View
+              style={[styles.inner, {paddingBottom: space.lg + insets.bottom}]}>
+              <View
+                style={[styles.grabber, {backgroundColor: palette.grabber}]}
+              />
 
-              {result.transaction ? (
-                <>
-                  <Text style={styles.section}>Transaction</Text>
+              <View style={styles.header}>
+                <Text style={[styles.title, {color: palette.label}]}>
+                  Parsed Result
+                </Text>
+                <TouchableOpacity
+                  onPress={onClose}
+                  hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                  <Text style={[styles.close, {color: palette.accent}]}>
+                    Done
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {result ? (
+                <ScrollView>
+                  <Field label="Decision" value={result.decision} />
+                  {result.excludeReason ? (
+                    <Field
+                      label="Exclude reason"
+                      value={result.excludeReason}
+                    />
+                  ) : null}
                   <Field
-                    label="Amount"
-                    value={formatAmount(result.transaction.amount, result.transaction.currency)}
+                    label="Confidence"
+                    value={`${Math.round(result.confidence * 100)}%`}
                   />
-                  <Field label="Currency" value={result.transaction.currency} />
-                  <Field label="Type" value={result.transaction.type} />
-                  <Field label="Bank (issuer)" value={result.transaction.bank ?? '—'} />
-                  <Field label="Card last 4" value={result.transaction.cardLastFour ?? '—'} />
-                  <Field label="Merchant" value={result.transaction.merchant ?? '—'} />
-                  <Field label="Date" value={result.transaction.date ?? '—'} />
-                </>
-              ) : null}
 
-              <Text style={styles.section}>Raw SMS</Text>
-              <Text style={styles.raw}>{result.rawSms}</Text>
-            </ScrollView>
-          ) : null}
-        </View>
+                  {result.transaction ? (
+                    <>
+                      <Text
+                        style={[
+                          styles.section,
+                          {color: palette.tertiaryLabel},
+                        ]}>
+                        Transaction
+                      </Text>
+                      <Field
+                        label="Amount"
+                        value={formatAmount(
+                          result.transaction.amount,
+                          result.transaction.currency,
+                        )}
+                      />
+                      <Field
+                        label="Currency"
+                        value={result.transaction.currency}
+                      />
+                      <Field label="Type" value={result.transaction.type} />
+                      <Field
+                        label="Bank (issuer)"
+                        value={result.transaction.bank ?? '—'}
+                      />
+                      <Field
+                        label="Card last 4"
+                        value={result.transaction.cardLastFour ?? '—'}
+                      />
+                      <Field
+                        label="Merchant"
+                        value={result.transaction.merchant ?? '—'}
+                      />
+                      <Field
+                        label="Date"
+                        value={result.transaction.date ?? '—'}
+                      />
+                    </>
+                  ) : null}
+
+                  {isEnriched(result) ? (
+                    <EnrichmentSection result={result} />
+                  ) : null}
+
+                  {thread && thread.events.length > 1 ? (
+                    <ThreadSection thread={thread} />
+                  ) : null}
+
+                  <Text
+                    style={[styles.section, {color: palette.tertiaryLabel}]}>
+                    Raw SMS
+                  </Text>
+                  <Text style={[styles.raw, {color: palette.label}]}>
+                    {result.rawSms}
+                  </Text>
+                </ScrollView>
+              ) : null}
+            </View>
+          </Glass>
+        </Animated.View>
       </View>
     </Modal>
   );
 }
 
-function Field({label, value}: {label: string; value: string}): React.JSX.Element {
+/**
+ * Additive enrichment details from the contextual engine (WS-6): canonical
+ * merchant, category, recurring flag, and the ids of corroborating messages.
+ * Only shown when at least one is present (conservative — the engine emits null
+ * when no token hits).
+ */
+function EnrichmentSection({
+  result,
+}: {
+  result: EnrichedResult;
+}): React.JSX.Element | null {
+  const {palette} = useTheme();
+  const category = categoryLabel(result.category);
+  const linked = result.linkedTo ?? [];
+  const hasAny =
+    !!result.merchantCanonical ||
+    !!category ||
+    result.recurring ||
+    linked.length > 0;
+  if (!hasAny) {
+    return null;
+  }
   return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={styles.fieldValue}>{value}</Text>
+    <>
+      <Text style={[styles.section, {color: palette.tertiaryLabel}]}>
+        Enrichment
+      </Text>
+      {result.merchantCanonical ? (
+        <Field label="Canonical merchant" value={result.merchantCanonical} />
+      ) : null}
+      {category ? <Field label="Category" value={category} /> : null}
+      <Field label="Recurring" value={result.recurring ? 'Yes' : 'No'} />
+      {linked.length > 0 ? (
+        <Field label="Linked messages" value={linked.join(', ')} />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The lifecycle thread this result belongs to (WS-6): the net amount plus the
+ * ordered stages (auth -> spend -> refund/EMI/bill). Only rendered for
+ * multi-event threads so a standalone transaction stays uncluttered.
+ */
+function ThreadSection({thread}: {thread: Thread}): React.JSX.Element {
+  const {palette} = useTheme();
+  return (
+    <>
+      <Text style={[styles.section, {color: palette.tertiaryLabel}]}>
+        Thread
+      </Text>
+      <Field
+        label="Net amount"
+        value={formatAmount(thread.netAmount, threadCurrency(thread))}
+      />
+      <Field label="Events" value={String(thread.events.length)} />
+      {thread.events.map((ev, i) => (
+        <View
+          key={ev.id}
+          style={[styles.threadRow, {borderBottomColor: palette.separator}]}>
+          <Text style={[styles.threadStage, {color: palette.secondaryLabel}]}>
+            {i + 1}. {stageLabel(ev)}
+          </Text>
+          <Text
+            style={[styles.threadAmount, {color: palette.label}]}
+            numberOfLines={1}>
+            {ev.transaction
+              ? formatAmount(ev.transaction.amount, ev.transaction.currency)
+              : ev.excludeReason ?? 'EXCLUDED'}
+          </Text>
+        </View>
+      ))}
+    </>
+  );
+}
+
+/** Currency to format a thread's net amount in (first event with one, else INR). */
+function threadCurrency(thread: Thread): string {
+  for (const ev of thread.events) {
+    if (ev.transaction) {
+      return ev.transaction.currency;
+    }
+  }
+  return 'INR';
+}
+
+/** A short human label for a thread event's lifecycle stage. */
+function stageLabel(ev: EnrichedResult): string {
+  if (ev.transaction) {
+    return ev.transaction.type; // DEBIT / CREDIT / REFUND
+  }
+  return ev.excludeReason ?? 'EVENT';
+}
+
+function Field({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): React.JSX.Element {
+  const {palette} = useTheme();
+  return (
+    <View style={[styles.field, {borderBottomColor: palette.separator}]}>
+      <Text style={[styles.fieldLabel, {color: palette.secondaryLabel}]}>
+        {label}
+      </Text>
+      <Text style={[styles.fieldValue, {color: palette.label}]}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {flex: 1, backgroundColor: '#00000066', justifyContent: 'flex-end'},
-  sheet: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: space.lg,
-    maxHeight: '85%',
+  fill: {flex: 1},
+  backdrop: {...StyleSheet.absoluteFillObject, backgroundColor: '#00000066'},
+  sheetWrap: {position: 'absolute', left: 0, right: 0, bottom: 0},
+  sheet: {maxHeight: '88%'},
+  inner: {padding: space.lg},
+  grabber: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: space.md,
   },
   header: {
     flexDirection: 'row',
@@ -83,19 +331,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: space.md,
   },
-  title: {fontSize: 18, fontWeight: '800', color: colors.text},
-  close: {fontSize: 15, fontWeight: '700', color: colors.accent},
+  title: {...type.title3, fontWeight: '700'},
+  close: {...type.headline},
   section: {
-    fontSize: 12,
+    ...type.caption,
     fontWeight: '700',
-    color: colors.subtle,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
     marginTop: space.md,
     marginBottom: space.xs,
   },
-  field: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border},
-  fieldLabel: {fontSize: 14, color: colors.subtle},
-  fieldValue: {fontSize: 14, fontWeight: '600', color: colors.text, flexShrink: 1, textAlign: 'right', marginLeft: space.md},
-  raw: {fontSize: 13, color: colors.text, lineHeight: 19, marginTop: space.xs},
+  field: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  fieldLabel: {...type.subhead},
+  fieldValue: {
+    ...type.subhead,
+    fontWeight: '600',
+    flexShrink: 1,
+    textAlign: 'right',
+    marginLeft: space.md,
+  },
+  raw: {...type.footnote, lineHeight: 19, marginTop: space.xs},
+  threadRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  threadStage: {...type.footnote, fontWeight: '600', flexShrink: 1},
+  threadAmount: {...type.footnote, marginLeft: space.md},
 });

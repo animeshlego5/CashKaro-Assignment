@@ -1,15 +1,23 @@
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
-import {colors, confidenceColor} from '../theme';
+import {confidenceColor} from '../theme';
+import {useTheme} from '../theme/ThemeContext';
 
-/** A compact confidence bar + percentage, coloured by bucket. */
-export default function ConfidenceIndicator({confidence}: {confidence: number}): React.JSX.Element {
+/** A compact confidence bar + percentage, coloured by bucket (appearance-aware). */
+export default function ConfidenceIndicator({
+  confidence,
+}: {
+  confidence: number;
+}): React.JSX.Element {
+  const {palette} = useTheme();
   const pct = Math.round(confidence * 100);
-  const color = confidenceColor(confidence);
+  const color = confidenceColor(confidence, palette);
   return (
     <View style={styles.row}>
-      <View style={styles.track}>
-        <View style={[styles.fill, {width: `${pct}%`, backgroundColor: color}]} />
+      <View style={[styles.track, {backgroundColor: palette.separator}]}>
+        <View
+          style={[styles.fill, {width: `${pct}%`, backgroundColor: color}]}
+        />
       </View>
       <Text style={[styles.pct, {color}]}>{pct}%</Text>
     </View>
@@ -19,10 +27,9 @@ export default function ConfidenceIndicator({confidence}: {confidence: number}):
 const styles = StyleSheet.create({
   row: {flexDirection: 'row', alignItems: 'center'},
   track: {
-    width: 40,
+    width: 44,
     height: 5,
     borderRadius: 3,
-    backgroundColor: colors.border,
     overflow: 'hidden',
     marginRight: 6,
   },

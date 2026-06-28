@@ -1,0 +1,7 @@
+# Generated / build output — never lint these (mirrors .gitignore).
+node_modules/
+android/app/build/
+android/build/
+ios/build/
+build/
+coverage/
