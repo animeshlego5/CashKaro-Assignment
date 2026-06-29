@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -57,6 +58,11 @@ export default function DetailModal({
 }): React.JSX.Element {
   const {palette, reduceMotion} = useTheme();
   const insets = useSafeAreaInsets();
+  // Bound the sheet to a concrete fraction of the screen (a '%' maxHeight does
+  // not resolve against the absolutely-positioned, height-less sheet wrapper) so
+  // the fixed header (grabber + Done) is always on-screen and the body scrolls.
+  const {height: windowHeight} = useWindowDimensions();
+  const maxSheet = Math.round(windowHeight * 0.88);
   // 1 = presented, 0 = hidden. Drives a translateY + backdrop fade. Uses RN's
   // built-in Animated (no native C++ build) so the glass UI compiles without the
   // reanimated NDK toolchain; native-driven so it stays off the JS thread.
@@ -115,12 +121,12 @@ export default function DetailModal({
         </Animated.View>
 
         <Animated.View style={[styles.sheetWrap, sheetStyle]}>
-          <Glass
-            radius={radius.outer}
-            elevation={elevation.sheet}
-            style={styles.sheet}>
+          <Glass radius={radius.outer} elevation={elevation.sheet}>
             <View
-              style={[styles.inner, {paddingBottom: space.lg + insets.bottom}]}>
+              style={[
+                styles.inner,
+                {maxHeight: maxSheet, paddingBottom: space.lg + insets.bottom},
+              ]}>
               <View
                 style={[styles.grabber, {backgroundColor: palette.grabber}]}
               />
@@ -139,7 +145,7 @@ export default function DetailModal({
               </View>
 
               {result ? (
-                <ScrollView>
+                <ScrollView style={styles.scroll}>
                   <Field label="Decision" value={result.decision} />
                   {result.excludeReason ? (
                     <Field
@@ -333,8 +339,11 @@ const styles = StyleSheet.create({
   fill: {flex: 1},
   backdrop: {...StyleSheet.absoluteFillObject, backgroundColor: '#00000066'},
   sheetWrap: {position: 'absolute', left: 0, right: 0, bottom: 0},
-  sheet: {maxHeight: '88%'},
   inner: {padding: space.lg},
+  // Body scrolls within the bounded sheet so the fixed header (Done) stays put.
+  // RN's default flexShrink is 0, so this is required for the ScrollView to
+  // shrink to the available space instead of overflowing the sheet.
+  scroll: {flexShrink: 1},
   grabber: {
     width: 36,
     height: 5,
