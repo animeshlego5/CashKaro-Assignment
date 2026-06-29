@@ -10,6 +10,8 @@ All parsing, classification, bank detection and confidence scoring happen in **p
 
 **Screen recording:** _<add link to the ≤2-minute walkthrough here>_
 
+**Download APK:** [CashKaro-v1.0.0.apk](https://github.com/animeshlego5/CashKaro-Assignment/releases/tag/v1.0.0) — install on Android 6.0+ (enable *Install from unknown sources*)
+
 > **Assignment-core vs. v2-additive.** Sections **1–7** below document the **graded assignment**: the pure-Kotlin parser, the `parseSms` contract, and the React Native screen. **Section 8 ("Beyond the assignment")** documents a **v2 layer built additively on top** — an iOS-26 "Liquid Glass" UI redesign, a runtime SMS file-import flow, and a stateful **contextual engine**. None of it changes the graded path: **`parseSms` is byte-for-byte unchanged and remains the graded entry point**, the frozen `ParsedResult` schema is untouched, and the 25-sample golden oracle (`ParserGoldenTest`) still shows **zero diffs**. The contextual engine is a separate sidecar method (`parseSmsSession`) with its own schema — it never feeds the graded contract. If you only care about the assignment, read 1–7 and stop.
 
 ---
