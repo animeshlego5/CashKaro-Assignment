@@ -8,7 +8,7 @@ All parsing, classification, bank detection and confidence scoring happen in **p
 
 **Status:** over the 25 provided samples the parser produces **7 INCLUDE / 18 EXCLUDE** (INR debit ₹5,455 · INR credit/refund ₹450 · the USD sample excluded from INR totals). **164 Kotlin unit tests pass**, and the app was verified on a physical device (OnePlus, Android 15).
 
-**Screen recording:** _<add link to the ≤2-minute walkthrough here>_
+**Screen recording:** [Watch on YouTube](https://youtube.com/shorts/z7l5e6zGm0M)
 
 **Download APK:** [CashKaro-v1.0.0.apk](https://github.com/animeshlego5/CashKaro-Assignment/releases/tag/v1.0.0) — install on Android 6.0+ (enable *Install from unknown sources*)
 
